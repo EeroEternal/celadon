@@ -2,7 +2,27 @@
 
 长期运行、自我优化的**仓库值守 Agent**：盯住任意一个目标仓库（`xgateway`、`xlite`、或任何 `owner/name`），每天午夜深度扫描、每 6 小时快速巡检，发现问题记录进持久记忆，紧急问题直接呼叫（page）人类。换目标仓库只需要改一个环境变量 `TARGET_REPO`。
 
-基于 [Flue](https://flueframework.com/)（Agent harness）+ Cloudflare Workers（cron 触发）+ Durable Objects（记忆）。
+基于 [Flue](https://flueframework.com/)（Agent harness）+ Cloudflare Workers（cron 触发）+ Durable Objects（记忆 + 配置）。
+
+## 管理页面
+
+打开 `https://celadon.chat/`（或 worker 域名），粘贴 `KEEPER_API_KEY` 后即可：
+
+- **设置 Agent**：附加指令（每次运行带给 Agent）
+- **绑定仓库**：目标仓库 `owner/name`，随时切换
+- **周期任务**：编辑每日深度扫描 / 每 6 小时快速巡检的任务文案，各自可开关；也可“立即运行”
+- **对话**：和长期会话 `nightly` 直接聊天，记忆 / playbook 跨次延续
+
+页面是单文件原生 HTML（`src/ui.ts`），配置存在自有的 `ConfigStore` Durable Object，无需额外服务。
+
+管理 API（都需 Bearer `KEEPER_API_KEY`）：
+
+```
+GET  /api/config        读配置
+PUT  /api/config        改配置 {repo, extra, daily:{enabled,task}, quick:{enabled,task}}
+POST /api/run           立即运行 {slot:"daily"|"quick"}
+POST /agents/keeper/nightly   对话（同页面聊天）
+```
 
 ## 工作方式
 
@@ -13,6 +33,7 @@ Cloudflare Cron Trigger (wrangler.jsonc)
           ↓ dispatch(Keeper, { id: 'nightly', message })
    Flue Durable Object: FlueKeeperAgent（同一个长跑会话 'nightly'）
           ├─ repo_list / repo_read / repo_search / repo_ci   读 GitHub 仓库做分析
+          ├─ open_issue 在 GitHub 开 issue（告警/跟踪直接落在仓库里）
           ├─ remember   写持久记忆（跨天累积）
           ├─ update_playbook  改写自己的操作手册 → 自我优化
           └─ page       呼叫人类（PagerDuty / webhook）
@@ -25,10 +46,12 @@ Cloudflare Cron Trigger (wrangler.jsonc)
 ## 目录
 
 ```
-src/app.ts            HTTP 入口（Hono，挂载 /agents/keeper）
-src/cloudflare.ts     scheduled handler：cron → dispatch
+src/app.ts            HTTP 入口（页面 / 管理 API / 挂载 agent）
+src/ui.ts             管理页面（单文件 HTML）
+src/config.ts         配置读写（ConfigStore Durable Object）
+src/cloudflare.ts     ConfigStore DO 定义 + scheduled handler：cron → dispatch
 src/agents/keeper.ts  Agent 本体（'use agent'，工具、记忆、playbook）
-src/tools/repo.ts     GitHub API 读取（列表/读文件/代码搜索/CI 结果）
+src/tools/repo.ts     GitHub API（列表/读文件/代码搜索/CI 结果/开 issue）
 src/tools/pager.ts    呼叫人类（PagerDuty Events v2 或 webhook）
 test/pager.test.ts    node --test 自检
 ```
@@ -37,19 +60,36 @@ test/pager.test.ts    node --test 自检
 
 ```bash
 npm install
-npx wrangler secret put GITHUB_TOKEN        # 读仓库用
-npx wrangler secret put PAGER_ROUTING_KEY   # PagerDuty Events v2（可选）
-npm run deploy                              # vite build && wrangler deploy
+# GitHub App 认证（推荐）：见下节
+npx wrangler secret put GITHUB_APP_PRIVATE_KEY   # .pem 全文（含 BEGIN/END 行）
+npx wrangler secret put GITHUB_APP_ID
+npx wrangler secret put GITHUB_INSTALLATION_ID
+npx wrangler secret put KEEPER_API_KEY          # 对外 HTTP 的访问密钥
+npx wrangler secret put PAGER_ROUTING_KEY       # 可选，PagerDuty
+npm run deploy                                  # vite build && wrangler deploy
 ```
+
+### GitHub App（替代个人 token）
+
+1. GitHub → Settings → Developer settings → **GitHub Apps** → New GitHub App：
+   - Repository permissions：**Contents: Read-only**、**Issues: Read & write**、**Actions: Read-only**
+   - Webhook 可以关掉（不需要）
+2. 创建后记下 **App ID**，点 **Generate a private key** 下载 `.pem`
+3. **Install App** 装到目标仓库（如 `EeroEternal/xgateway`），安装页地址里那串数字就是 **Installation ID**（也可查 `GET /app/installations`）
+4. 把三个值 `wrangler secret put` 进去（见上）
+
+bonsai 会自己用私钥签 JWT 去换 **installation access token**（1 小时有效，自动缓存续期），不再需要长期 PAT。本地开发仍可用 `GITHUB_TOKEN` 兜底。
 
 ## 配置（环境变量 / wrangler secrets & vars）
 
 | 变量 | 说明 | 默认 |
 | --- | --- | --- |
 | `TARGET_REPO` | 被守护的仓库 `owner/name`（必填，换仓库只改这里） | `EeroEternal/xgateway` |
-| `GITHUB_TOKEN` | GitHub API 访问令牌（必需） | — |
+| `GITHUB_APP_ID` / `GITHUB_APP_PRIVATE_KEY` / `GITHUB_INSTALLATION_ID` | GitHub App 认证（推荐，自动换短时 token） | — |
+| `GITHUB_TOKEN` | 个人 token，本地开发兜底（可选） | — |
 | `PAGER_ROUTING_KEY` | PagerDuty Events v2 routing key | — |
 | `PAGER_WEBHOOK_URL` | 兜底告警 webhook（JSON POST） | — |
+| `KEEPER_API_KEY` | 对外 HTTP（页面 / API / 对话）的访问密钥 | — |
 | `KEEPER_MODEL` | 模型 specifier | `cloudflare/@cf/moonshotai/kimi-k2.6`（Workers AI，无需 key） |
 
 定时周期在 `wrangler.jsonc` 的 `triggers.crons` 里改（UTC 时间），消息文案在 `src/cloudflare.ts`。

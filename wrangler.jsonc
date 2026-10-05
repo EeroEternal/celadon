@@ -3,9 +3,17 @@
   "name": "bonsai",
   "compatibility_date": "2026-06-01",
   "compatibility_flags": ["nodejs_compat"],
+  // Workers AI binding:让 useModel('cloudflare/...') 可用
+  "ai": { "binding": "AI" },
   // Midnight UTC: deep nightly scan. Every 6 hours: quick health scan.
   "triggers": { "crons": ["0 0 * * *", "0 */6 * * *"] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["FlueKeeperAgent"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["FlueKeeperAgent"] },
+    { "tag": "v2", "new_sqlite_classes": ["ConfigStore"] }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "CONFIG", "class_name": "ConfigStore" }]
+  },
   "vars": {
     // 被守护的仓库:换成你自己的目标(xgateway、xlite、……)。
     "TARGET_REPO": "EeroEternal/xgateway"

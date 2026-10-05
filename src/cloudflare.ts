@@ -1,25 +1,35 @@
 import { dispatch } from '@flue/runtime';
+import { DurableObject } from 'cloudflare:workers';
 import { Keeper } from './agents/keeper.ts';
+import { getConfig } from './config.ts';
+
+// App-owned Durable Object: one instance ("default") holds the keeper config
+// edited from the web page at celadon.chat/.
+export class ConfigStore extends DurableObject {
+	async get(): Promise<unknown> {
+		return (await this.ctx.storage.get('config')) ?? {};
+	}
+
+	async set(config: unknown): Promise<void> {
+		await this.ctx.storage.put('config', config);
+	}
+}
 
 // One long-running conversation: every fire continues the same 'nightly' instance,
 // so memory and playbook carry over from night to night.
 const ID = 'nightly';
 
-const MESSAGES: Record<string, string> = {
-	'0 0 * * *':
-		'午夜深度扫描:完整走一遍工作循环(CI、风险代码模式、可疑文件),更新记忆与 playbook,输出本次报告。',
-	'0 */6 * * *':
-		'快速健康检查:只看 CI 失败与上次报告遗留的 action 项,若有生产级问题立即 page,否则一句话汇报。',
-};
-
 export default {
 	async scheduled(controller: { cron: string; scheduledTime: number }) {
+		const cfg = await getConfig();
+		const slot = controller.cron === '0 0 * * *' ? cfg.daily : cfg.quick;
+		if (!slot.enabled) return;
 		await dispatch(Keeper, {
 			id: ID,
 			message: {
 				kind: 'signal',
 				type: 'schedule',
-				body: MESSAGES[controller.cron] ?? `定时扫描 (cron=${controller.cron})。`,
+				body: cfg.extra ? `${slot.task}\n\n附加指令:\n${cfg.extra}` : slot.task,
 				attributes: {
 					cron: controller.cron,
 					scheduledAt: new Date(controller.scheduledTime).toISOString(),

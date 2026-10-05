@@ -3,7 +3,7 @@
 import { useModel, usePersistentState, useTool } from '@flue/runtime';
 import * as v from 'valibot';
 import { sendPage, type Severity } from '../tools/pager.ts';
-import { repoCi, repoList, repoRead, repoSearch, repoSlug } from '../tools/repo.ts';
+import { repoCi, repoList, repoOpenIssue, repoRead, repoSearch } from '../tools/repo.ts';
 
 interface MemoryEntry {
 	id: number;
@@ -15,7 +15,7 @@ interface MemoryEntry {
 const DEFAULT_PLAYBOOK = `1. 先看 CI(repo_ci),失败的 run 是最可信的问题信号。
 2. 用 repo_search 扫描高风险模式:unwrap()/expect(、TODO、FIXME、panic!、裸的 clone 滥用、超大函数。
 3. 用 repo_read 打开可疑文件,确认问题真实存在,排除误报。
-4. 每个确认的问题调用 remember(kind='finding') 记录;紧急问题调用 page。
+4. 每个确认的问题:先 open_issue 开 issue 跟踪(把 issue 链接写进 remember),再决定是否需要 page。
 5. 结束前用 update_playbook 写回本次学到的东西(新的问题热点、误报模式、更省 token 的扫描顺序)。`;
 
 const MemorySchema = v.array(
@@ -55,7 +55,7 @@ export function Keeper() {
 
 	useTool({
 		name: 'repo_list',
-		description: `List file and directory names in the ${repoSlug()} repository.`,
+		description: 'List file and directory names in the linked target repository.',
 		input: v.object({ path: v.optional(v.string()) }),
 		async run({ data }) {
 			return (await repoList(data.path ?? '')).join('\n');
@@ -64,7 +64,7 @@ export function Keeper() {
 
 	useTool({
 		name: 'repo_read',
-		description: `Read one file from the ${repoSlug()} repository by path (truncated to 50KB).`,
+		description: 'Read one file from the linked target repository by path (truncated to 50KB).',
 		input: v.object({ path: v.string() }),
 		async run({ data }) {
 			return repoRead(data.path);
@@ -73,7 +73,7 @@ export function Keeper() {
 
 	useTool({
 		name: 'repo_search',
-		description: `Search code in the ${repoSlug()} repository with GitHub code-search syntax (e.g. "panic! path:src").`,
+		description: 'Search code in the linked target repository with GitHub code-search syntax (e.g. "panic! path:src").',
 		input: v.object({ query: v.string() }),
 		async run({ data }) {
 			const hits = await repoSearch(data.query);
@@ -83,11 +83,21 @@ export function Keeper() {
 
 	useTool({
 		name: 'repo_ci',
-		description: `Recent GitHub Actions runs for ${repoSlug()}, failures first.`,
+		description: 'Recent GitHub Actions runs for the linked target repository, failures first.',
 		input: v.object({}),
 		async run() {
 			const runs = await repoCi();
 			return runs.length ? runs.map((r) => `${r.name} — ${r.url}`).join('\n') : 'No workflow runs found.';
+		},
+	});
+
+	useTool({
+		name: 'open_issue',
+		description:
+			'Open a GitHub issue in the linked target repository to track a confirmed problem. Use it for anything a human must fix or review; the issue URL is the shared link between you and the repo.',
+		input: v.object({ title: v.string(), body: v.string() }),
+		async run({ data }) {
+			return repoOpenIssue(data.title, data.body);
 		},
 	});
 
@@ -101,13 +111,13 @@ export function Keeper() {
 		},
 	});
 
-	return `你是 ${repoSlug()} 项目的长期值守 Agent。每个定时周期被唤醒一次,持续分析与排查该项目的问题,并不断优化自己的工作方式。始终用简体中文输出。
+	return `你是目标仓库的长期值守 Agent。每个定时周期被唤醒一次,持续分析与排查该项目的问题,并不断优化自己的工作方式。始终用简体中文输出。
 
 ## 工作循环
 1. 回顾下方记忆,确定本次重点(不要重复已经确认过的误报)。
 2. 扫描:CI 失败、高风险代码模式、超大/可疑文件。
 3. 对每个疑似问题:用 repo_read 确认后再下结论,区分「确认问题」与「疑似」。
-4. 记录:确认的问题用 remember;需要人处理的用 remember(kind="action");致命问题用 page。
+4. 记录与联动:确认的问题用 open_issue 开 issue(把链接写进 remember);需要人处理的用 remember(kind="action");致命问题用 page。
 5. 自我优化:本次学到的新热点、误报模式、更高效的扫描顺序,用 update_playbook 写回。
 
 ## 输出
