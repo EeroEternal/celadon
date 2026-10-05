@@ -10,7 +10,9 @@ function token(): string {
 }
 
 function repo(): string {
-	return process.env.TARGET_REPO ?? 'EeroEternal/xgateway';
+	const r = process.env.TARGET_REPO;
+	if (!r) throw new Error('TARGET_REPO is not set (owner/name of the repo to keep)');
+	return r;
 }
 
 async function gh(path: string): Promise<unknown> {
@@ -18,7 +20,7 @@ async function gh(path: string): Promise<unknown> {
 		headers: {
 			authorization: `Bearer ${token()}`,
 			accept: 'application/vnd.github+json',
-			'user-agent': 'xgateway-keeper',
+			'user-agent': 'repo-keeper',
 		},
 	});
 	if (!res.ok) throw new Error(`GitHub ${path} -> ${res.status} ${await res.text()}`);

@@ -1,6 +1,6 @@
-# xgateway-keeper
+# repo-keeper
 
-长期运行、自我优化的项目值守 Agent：盯住 `~/dev/xgateway`（[EeroEternal/xgateway](https://github.com/EeroEternal/xgateway)），每天午夜深度扫描、每 6 小时快速巡检，发现问题记录进持久记忆，紧急问题直接呼叫（page）人类。
+长期运行、自我优化的**仓库值守 Agent**：盯住任意一个目标仓库（`xgateway`、`xlite`、或任何 `owner/name`），每天午夜深度扫描、每 6 小时快速巡检，发现问题记录进持久记忆，紧急问题直接呼叫（page）人类。换目标仓库只需要改一个环境变量 `TARGET_REPO`。
 
 基于 [Flue](https://flueframework.com/)（Agent harness）+ Cloudflare Workers（cron 触发）+ Durable Objects（记忆）。
 
@@ -46,7 +46,7 @@ npm run deploy                              # vite build && wrangler deploy
 
 | 变量 | 说明 | 默认 |
 | --- | --- | --- |
-| `TARGET_REPO` | 被守护的仓库 `owner/name` | `EeroEternal/xgateway` |
+| `TARGET_REPO` | 被守护的仓库 `owner/name`（必填，换仓库只改这里） | `EeroEternal/xgateway` |
 | `GITHUB_TOKEN` | GitHub API 访问令牌（必需） | — |
 | `PAGER_ROUTING_KEY` | PagerDuty Events v2 routing key | — |
 | `PAGER_WEBHOOK_URL` | 兜底告警 webhook（JSON POST） | — |

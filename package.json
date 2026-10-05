@@ -1,9 +1,9 @@
 {
-  "name": "xgateway-keeper",
+  "name": "repo-keeper",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Long-running, self-optimizing maintenance agent for the xgateway project. Flue + Cloudflare Workers.",
+  "description": "Long-running, self-optimizing repo keeper agent (Flue + Cloudflare Workers). Watches one target repo, scans on a schedule, keeps memory, pages humans.",
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
