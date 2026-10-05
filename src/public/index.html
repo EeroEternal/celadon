@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>bonsai · 仓库值守</title>
+<style>
+  :root {
+    --bg: #f6f7fb; --panel: #ffffff; --border: #e5e7f0; --text: #171a2b; --muted: #6b7280;
+    --primary: #4f46e5; --primary-fg: #ffffff; --primary-soft: #eef2ff;
+    --ok: #16a34a; --warn: #d97706; --danger: #dc2626;
+    --radius: 12px; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.06);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .hidden { display: none !important; }
+  button { font: inherit; cursor: pointer; }
+  a { color: var(--primary); }
+
+  /* ---------- auth ---------- */
+  .auth-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+  .auth-card { width: 100%; max-width: 400px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 16px; box-shadow: var(--shadow); padding: 32px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+  .brand .logo { width: 34px; height: 34px; border-radius: 10px; background: var(--primary); color: #fff;
+    display: grid; place-items: center; font-size: 18px; }
+  .auth-card h1 { font-size: 20px; margin: 22px 0 4px; }
+  .auth-card p.sub { color: var(--muted); margin: 0 0 22px; font-size: 14px; }
+
+  /* ---------- forms ---------- */
+  label.field { display: block; margin: 14px 0 6px; font-size: 13px; font-weight: 600; color: #374151; }
+  .hint { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
+  input[type=text], input[type=password], textarea, select {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+    background: #fff; color: var(--text); font: inherit; outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus, textarea:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
+  textarea { resize: vertical; min-height: 84px; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px;
+    border-radius: 10px; border: 1px solid transparent; font-weight: 600; transition: opacity .15s, background .15s; }
+  .btn:disabled { opacity: .55; cursor: not-allowed; }
+  .btn-primary { background: var(--primary); color: var(--primary-fg); }
+  .btn-primary:hover:not(:disabled) { background: #4338ca; }
+  .btn-ghost { background: #fff; border-color: var(--border); color: var(--text); }
+  .btn-ghost:hover:not(:disabled) { background: var(--bg); }
+  .btn-block { width: 100%; }
+  .btn-sm { padding: 7px 12px; font-size: 13.5px; }
+
+  /* ---------- shell ---------- */
+  .shell { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+  .sidebar { background: var(--panel); border-right: 1px solid var(--border); padding: 18px 14px;
+    display: flex; flex-direction: column; gap: 6px; position: sticky; top: 0; height: 100vh; }
+  .sidebar .brand { padding: 6px 10px 18px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px;
+    color: #4b5563; font-weight: 500; border: 0; background: transparent; width: 100%; text-align: left; }
+  .nav-item:hover { background: var(--bg); }
+  .nav-item.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+  .nav-item .ico { width: 20px; text-align: center; }
+  .sidebar .spacer { flex: 1; }
+  .user-box { border-top: 1px solid var(--border); padding-top: 12px; display: flex; align-items: center; gap: 10px; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--primary-soft); color: var(--primary);
+    display: grid; place-items: center; font-weight: 700; flex: none; }
+  .user-box .who { flex: 1; min-width: 0; }
+  .user-box .who b { display: block; font-size: 13.5px; }
+  .user-box .who span { color: var(--muted); font-size: 12px; }
+
+  main { min-width: 0; display: flex; flex-direction: column; }
+  .page-header { display: flex; align-items: center; gap: 12px; padding: 18px 24px; background: var(--panel);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
+  .page-header h1 { font-size: 17px; margin: 0; }
+  .page-header .sub { color: var(--muted); font-size: 13px; }
+  .page-header .grow { flex: 1; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; background: var(--bg); color: var(--muted); border: 1px solid var(--border); }
+  .badge.ok { background: #ecfdf5; color: var(--ok); border-color: #a7f3d0; }
+  .badge.warn { background: #fffbeb; color: var(--warn); border-color: #fde68a; }
+
+  /* ---------- chat ---------- */
+  .chat-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .messages { flex: 1; overflow-y: auto; padding: 26px 24px 12px; }
+  .msg-row { display: flex; gap: 12px; margin: 0 auto 20px; max-width: 860px; }
+  .msg-row.user { flex-direction: row-reverse; }
+  .bubble { max-width: 78%; padding: 12px 16px; border-radius: 16px; background: var(--panel);
+    border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(16,24,40,.05); overflow-wrap: anywhere; }
+  .msg-row.user .bubble { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .bubble .meta { font-size: 11.5px; color: var(--muted); margin-bottom: 4px; }
+  .msg-row.user .bubble .meta { color: rgba(255,255,255,.75); }
+  .bubble pre { background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 10px; overflow-x: auto; font-size: 13px; }
+  .bubble code { background: rgba(107,114,128,.12); padding: 1px 6px; border-radius: 6px; font-size: 13px; }
+  .bubble pre code { background: transparent; padding: 0; }
+  .bubble ul { padding-left: 20px; margin: 6px 0; }
+  .bubble p { margin: 6px 0; }
+  .msg-row.user .bubble code { background: rgba(255,255,255,.2); }
+  .typing { display: inline-flex; gap: 5px; padding: 6px 2px; }
+  .typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite; }
+  .typing i:nth-child(2) { animation-delay: .2s; } .typing i:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: .25 } 40% { opacity: 1 } }
+
+  .composer { border-top: 1px solid var(--border); background: var(--panel); padding: 14px 24px 18px; }
+  .composer .inner { max-width: 860px; margin: 0 auto; display: flex; gap: 10px; align-items: flex-end; }
+  .composer textarea { min-height: 48px; max-height: 180px; flex: 1; }
+  .quick-actions { max-width: 860px; margin: 0 auto 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: #fff;
+    font-size: 13px; color: #374151; }
+  .chip:hover { background: var(--primary-soft); color: var(--primary); border-color: #c7d2fe; }
+
+  /* ---------- settings ---------- */
+  .settings-body { padding: 24px; max-width: 860px; width: 100%; margin: 0 auto; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 22px; margin-bottom: 18px; }
+  .card h2 { font-size: 15.5px; margin: 0 0 4px; }
+  .card .desc { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  .row { display: flex; gap: 16px; }
+  .row > * { flex: 1; min-width: 0; }
+  .switch-row { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; }
+  .switch { position: relative; width: 42px; height: 24px; flex: none; }
+  .switch input { opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; position: absolute; z-index: 1; }
+  .switch .track { position: absolute; inset: 0; background: #d1d5db; border-radius: 999px; transition: background .15s; }
+  .switch .track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+    background: #fff; border-radius: 50%; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+  .switch input:checked + .track { background: var(--primary); }
+  .switch input:checked + .track::after { transform: translateX(18px); }
+  .save-bar { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 10px;
+    background: rgba(255,255,255,.92); backdrop-filter: blur(6px); border-top: 1px solid var(--border);
+    padding: 12px 24px; margin-top: 8px; }
+
+  /* ---------- modal / toast ---------- */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: grid; place-items: center;
+    padding: 20px; z-index: 50; }
+  .modal { background: var(--panel); border-radius: 16px; max-width: 520px; width: 100%; padding: 24px;
+    box-shadow: var(--shadow); max-height: 85vh; overflow-y: auto; }
+  .modal h3 { margin: 0 0 6px; font-size: 17px; }
+  .modal .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  #toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 99; display: flex;
+    flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+  .toast-item { background: #111827; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13.5px;
+    box-shadow: var(--shadow); opacity: .96; }
+
+  /* ---------- responsive ---------- */
+  .tabbar { display: none; }
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .tabbar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: var(--panel);
+      border-top: 1px solid var(--border); z-index: 20; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); }
+    .tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px;
+      border: 0; background: transparent; color: var(--muted); font-size: 11.5px; border-radius: 10px; }
+    .tabbar button.active { color: var(--primary); background: var(--primary-soft); }
+    .tabbar .ico { font-size: 19px; }
+    .messages { padding: 18px 14px 8px; }
+    .composer { padding: 10px 14px calc(72px + env(safe-area-inset-bottom)); }
+    .bubble { max-width: 86%; }
+    .page-header { padding: 14px 16px; }
+    .settings-body { padding: 16px; }
+    .row { flex-direction: column; }
+  }
+  @media (max-width: 480px) {
+    .page-header .sub { display: none; }
+    .auth-card { padding: 24px; }
+  }
+</style>
+</head>
+<body>
+<div id="toast"></div>
+
+<!-- ================= login ================= -->
+<div id="loginView" class="auth-wrap hidden">
+  <div class="auth-card">
+    <div class="brand"><div class="logo">🌱</div> bonsai</div>
+    <h1>登录</h1>
+    <p class="sub">仓库值守 Agent 控制台</p>
+    <form id="loginForm">
+      <label class="field">用户名</label>
+      <input type="text" id="loginUser" autocomplete="username" value="admin">
+      <label class="field">密码</label>
+      <input type="password" id="loginPass" autocomplete="current-password">
+      <div style="margin-top:20px"><button class="btn btn-primary btn-block" type="submit">登录</button></div>
+      <div class="hint" id="loginError" style="color:var(--danger)"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= app ================= -->
+<div id="appView" class="shell hidden">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">🌱</div> bonsai</div>
+    <button class="nav-item" data-page="chat"><span class="ico">💬</span> 对话</button>
+    <button class="nav-item" data-page="settings"><span class="ico">⚙️</span> 设置</button>
+    <button class="nav-item" data-page="github"><span class="ico">🔗</span> GitHub</button>
+    <div class="spacer"></div>
+    <div class="user-box">
+      <div class="avatar">A</div>
+      <div class="who"><b>admin</b><span>已登录</span></div>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn">退出</button>
+    </div>
+  </aside>
+
+  <main>
+    <!-- chat page -->
+    <section id="chatPage" style="flex:1;display:flex;flex-direction:column;min-height:0">
+      <div class="page-header">
+        <div>
+          <h1>夜间值守会话</h1>
+          <div class="sub">长期会话 nightly · 记忆与 playbook 跨次延续</div>
+        </div>
+        <div class="grow"></div>
+        <span class="badge ok" id="chatStatus">● 就绪</span>
+      </div>
+      <div class="chat-wrap">
+        <div class="messages" id="messages"></div>
+        <div class="composer">
+          <div class="quick-actions">
+            <button class="chip" data-quick="做一次深度扫描,输出完整报告">🔍 深度扫描</button>
+            <button class="chip" data-quick="做一次快速健康检查,一句话汇报">⚡ 快速巡检</button>
+            <button class="chip" data-quick="汇报你的记忆和 playbook 现状">🧠 记忆现状</button>
+          </div>
+          <div class="inner">
+            <textarea id="chatInput" placeholder="给 bonsai 发消息…（Enter 发送，Shift+Enter 换行）"></textarea>
+            <button class="btn btn-primary" id="sendBtn">发送</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- settings page -->
+    <section id="settingsPage" class="hidden" style="flex:1;min-height:0;overflow-y:auto">
+      <div class="page-header">
+        <div>
+          <h1>设置</h1>
+          <div class="sub">仓库、计划任务与 Agent 行为</div>
+        </div>
+        <div class="grow"></div>
+        <span class="badge" id="saveBadge">未修改</span>
+      </div>
+      <div class="settings-body">
+        <div class="card">
+          <h2>目标仓库</h2>
+          <p class="desc">bonsai 值守的仓库。连接 GitHub 后可从你的仓库里选择。</p>
+          <label class="field">仓库（owner/name）</label>
+          <div class="row">
+            <input type="text" id="cfgRepo" placeholder="EeroEternal/xgateway">
+            <select id="repoSelect" class="hidden"></select>
+          </div>
+          <div class="hint" id="githubHint">未连接 GitHub —— 点击右下角「连接 GitHub」授权后可选择仓库。</div>
+        </div>
+
+        <div class="card">
+          <h2>计划任务</h2>
+          <p class="desc">定时由 Cloudflare Cron 触发（UTC）：<code>0 0 * * *</code> 每日深度扫描、<code>0 */6 * * *</code> 每 6 小时巡检。</p>
+          <div class="switch-row">
+            <label class="switch"><input type="checkbox" id="dailyEnabled"><span class="track"></span></label>
+            <b>每日深度扫描</b><span class="badge">0 0 * * *（午夜 UTC）</span>
+          </div>
+          <textarea id="dailyTask"></textarea>
+          <div class="switch-row" style="margin-top:16px">
+            <label class="switch"><input type="checkbox" id="quickEnabled"><span class="track"></span></label>
+            <b>快速巡检</b><span class="badge">0 */6 * * *</span>
+          </div>
+          <textarea id="quickTask"></textarea>
+          <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" data-run="daily">▶ 立即运行深度扫描</button>
+            <button class="btn btn-ghost btn-sm" data-run="quick">▶ 立即运行快速巡检</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Agent</h2>
+          <p class="desc">附加指令会带给每一次运行；Agent 的 playbook 由它自己在运行中优化。</p>
+          <label class="field">附加指令</label>
+          <textarea id="cfgExtra" placeholder="例：优先关注 deploy 目录与 e2e 失败"></textarea>
+          <div class="hint" id="modelHint"></div>
+        </div>
+
+        <div class="card">
+          <h2>告警（page）</h2>
+          <p class="desc">致命问题时呼叫人类。两种通道配其一，配置在 Cloudflare secrets。</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <span class="badge" id="pagerPd">PagerDuty</span>
+            <span class="badge" id="pagerHook">Webhook</span>
+          </div>
+          <div class="hint">设置方法：<code>npx wrangler secret put PAGER_ROUTING_KEY</code>（PagerDuty Events v2）或 <code>PAGER_WEBHOOK_URL</code>。</div>
+        </div>
+      </div>
+      <div class="save-bar">
+        <button class="btn btn-ghost" id="reloadBtn">放弃修改</button>
+        <button class="btn btn-primary" id="saveBtn" disabled>保存设置</button>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button data-page="chat"><span class="ico">💬</span>对话</button>
+    <button data-page="settings"><span class="ico">⚙️</span>设置</button>
+    <button data-page="github"><span class="ico">🔗</span>GitHub</button>
+    <button id="logoutBtnMobile"><span class="ico">🚪</span>退出</button>
+  </nav>
+</div>
+
+<!-- ================= github dialog ================= -->
+<div class="modal-backdrop hidden" id="ghModal">
+  <div class="modal">
+    <h3>连接 GitHub</h3>
+    <p class="desc" style="color:var(--muted);font-size:13.5px">
+      在弹出的 GitHub 页面完成授权，然后选择要值守的仓库。授权后 bonsai 可以读代码、看 CI、开 issue。
+    </p>
+    <div id="ghConnectedBox" class="hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg);border-radius:10px">
+        <div class="avatar" id="ghAvatar">G</div>
+        <div style="flex:1"><b id="ghLogin">-</b><div class="hint">已连接 GitHub</div></div>
+        <button class="btn btn-ghost btn-sm" id="ghDisconnect">断开</button>
+      </div>
+      <label class="field">选择仓库</label>
+      <select id="ghRepoSelect"></select>
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" id="ghClose">关闭</button>
+      <button class="btn btn-primary" id="ghConnect">连接 GitHub</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (m) {
+      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[m];
+    });
+  };
+
+  function toast(text) {
+    var box = $("toast");
+    var item = document.createElement("div");
+    item.className = "toast-item";
+    item.textContent = text;
+    box.appendChild(item);
+    setTimeout(function () { item.remove(); }, 3200);
+  }
+
+  async function api(path, opts) {
+    opts = opts || {};
+    var res = await fetch(path, {
+      method: opts.method || "GET",
+      headers: { "content-type": "application/json" },
+      credentials: "same-origin",
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+    if (res.status === 401) { showLogin(); throw new Error("unauthorized"); }
+    var data = null;
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok) throw new Error((data && data.error) || ("HTTP " + res.status));
+    return data;
+  }
+
+  /* ---------------- auth ---------------- */
+  function showLogin() {
+    $("appView").classList.add("hidden");
+    $("loginView").classList.remove("hidden");
+  }
+  function showApp() {
+    $("loginView").classList.add("hidden");
+    $("appView").classList.remove("hidden");
+  }
+
+  $("loginForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    $("loginError").textContent = "";
+    try {
+      await api("/api/login", { method: "POST", body: { username: $("loginUser").value.trim(), password: $("loginPass").value } });
+      showApp();
+      boot();
+    } catch (err) {
+      $("loginError").textContent = err.message;
+    }
+  });
+
+  async function logout() {
+    try { await api("/api/logout", { method: "POST" }); } catch (e) {}
+    showLogin();
+  }
+  $("logoutBtn").addEventListener("click", logout);
+  $("logoutBtnMobile").addEventListener("click", logout);
+
+  /* ---------------- router ---------------- */
+  var page = "chat";
+  function navigate(next) {
+    if (next === "github") { openGh(); return; }
+    page = next;
+    $("chatPage").classList.toggle("hidden", next !== "chat");
+    $("settingsPage").classList.toggle("hidden", next !== "settings");
+    document.querySelectorAll("[data-page]").forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-page") === next);
+    });
+    if (next === "chat") scrollMessages();
+  }
+  document.querySelectorAll("[data-page]").forEach(function (b) {
+    b.addEventListener("click", function () { navigate(b.getAttribute("data-page")); });
+  });
+
+  /* ---------------- chat ---------------- */
+  var messages = [];
+  var waiting = false;
+  var pollTimer = null;
+
+  function md(text) {
+    var out = esc(text);
+    out = out.replace(/```([\s\S]*?)```/g, function (_, code) { return "<pre><code>" + code.replace(/^\n/, "") + "</code></pre>"; });
+    out = out.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+    out = out.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+    out = out.replace(/^### (.+)$/gm, "<b>$1</b>");
+    out = out.replace(/^- (.+)$/gm, "<li>$1</li>");
+    out = out.replace(/(<li>[\s\S]*?<\/li>)/g, "<ul>$1</ul>");
+    out = out.replace(/\n{2,}/g, "</p><p>").replace(/\n/g, "<br>");
+    return "<p>" + out + "</p>";
+  }
+
+  function fmtTime(ts) {
+    try {
+      var d = new Date(ts);
+      return d.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    } catch (e) { return ""; }
+  }
+
+  function renderMessages() {
+    var box = $("messages");
+    var html = "";
+    var shown = 0;
+    for (var i = 0; i < messages.length; i++) {
+      var m = messages[i];
+      if (m.role !== "user" && m.role !== "assistant") continue;
+      var text = "";
+      for (var j = 0; j < (m.parts || []).length; j++) {
+        var p = m.parts[j];
+        if (p.type === "text" && p.text) text += (text ? "\n" : "") + p.text;
+      }
+      if (!text.trim()) continue;
+      shown++;
+      var isUser = m.role === "user";
+      html += '<div class="msg-row ' + (isUser ? "user" : "assistant") + '">' +
+        '<div class="avatar">' + (isUser ? "A" : "🌱") + "</div>" +
+        '<div class="bubble"><div class="meta">' + (isUser ? "admin" : "bonsai") + " · " + esc(fmtTime(m.timestamp)) + "</div>" +
+        (isUser ? "<p>" + esc(text) + "</p>" : md(text)) + "</div></div>";
+    }
+    if (waiting) {
+      html += '<div class="msg-row assistant"><div class="avatar">🌱</div><div class="bubble">' +
+        '<div class="meta">bonsai 正在思考…</div><div class="typing"><i></i><i></i><i></i></div></div></div>';
+    }
+    if (!shown && !waiting) {
+      html = '<div style="text-align:center;color:var(--muted);padding:48px 16px">' +
+        '<div style="font-size:40px">🌱</div><p>还没有对话。发条消息，或用下方快捷动作触发一次巡检。</p></div>';
+    }
+    box.innerHTML = html;
+    scrollMessages();
+  }
+
+  function scrollMessages() {
+    var box = $("messages");
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function lastAssistantPending() {
+    if (!messages.length) return true;
+    for (var i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "assistant") {
+        var parts = messages[i].parts || [];
+        for (var j = 0; j < parts.length; j++) {
+          if (parts[j].type === "text" && parts[j].text && parts[j].text.trim()) return false;
+        }
+        return true;
+      }
+    }
+    return true;
+  }
+
+  async function loadMessages() {
+    try {
+      var data = await api("/agents/keeper/nightly?view=history");
+      messages = data.messages || [];
+      waiting = lastAssistantPending();
+      renderMessages();
+      $("chatStatus").textContent = waiting ? "● 运行中" : "● 就绪";
+      $("chatStatus").className = "badge " + (waiting ? "warn" : "ok");
+    } catch (e) { /* transient */ }
+  }
+
+  async function send(text) {
+    if (!text.trim() || waiting) return;
+    waiting = true;
+    $("chatInput").value = "";
+    messages.push({ role: "user", timestamp: new Date().toISOString(), parts: [{ type: "text", text: text }] });
+    renderMessages();
+    try {
+      await api("/agents/keeper/nightly", { method: "POST", body: { kind: "user", body: text } });
+    } catch (e) {
+      waiting = false;
+      toast("发送失败：" + e.message);
+      renderMessages();
+      return;
+    }
+    startPolling();
+  }
+
+  function startPolling() {
+    if (pollTimer) return;
+    var tries = 0;
+    pollTimer = setInterval(async function () {
+      await loadMessages();
+      tries++;
+      if (!waiting || tries > 60) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+        if (tries > 60) { waiting = false; renderMessages(); }
+      }
+    }, 3000);
+  }
+
+  $("sendBtn").addEventListener("click", function () { send($("chatInput").value); });
+  $("chatInput").addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("chatInput").value); }
+  });
+  document.querySelectorAll("[data-quick]").forEach(function (b) {
+    b.addEventListener("click", function () { send(b.getAttribute("data-quick")); });
+  });
+
+  /* ---------------- settings ---------------- */
+  var dirty = false;
+  function setDirty(v) {
+    dirty = v;
+    $("saveBtn").disabled = !v;
+    $("saveBadge").textContent = v ? "有未保存修改" : "未修改";
+    $("saveBadge").className = "badge " + (v ? "warn" : "");
+  }
+
+  async function loadSettings() {
+    var cfg = await api("/api/config");
+    $("cfgRepo").value = cfg.repo || "";
+    $("cfgExtra").value = cfg.extra || "";
+    $("dailyEnabled").checked = !!cfg.daily.enabled;
+    $("dailyTask").value = cfg.daily.task || "";
+    $("quickEnabled").checked = !!cfg.quick.enabled;
+    $("quickTask").value = cfg.quick.task || "";
+    setDirty(false);
+  }
+
+  ["cfgRepo", "cfgExtra", "dailyTask", "quickTask"].forEach(function (id) {
+    $(id).addEventListener("input", function () { setDirty(true); });
+  });
+  ["dailyEnabled", "quickEnabled"].forEach(function (id) {
+    $(id).addEventListener("change", function () { setDirty(true); });
+  });
+
+  $("saveBtn").addEventListener("click", async function () {
+    try {
+      await api("/api/config", {
+        method: "PUT",
+        body: {
+          repo: $("cfgRepo").value.trim(),
+          extra: $("cfgExtra").value,
+          daily: { enabled: $("dailyEnabled").checked, task: $("dailyTask").value },
+          quick: { enabled: $("quickEnabled").checked, task: $("quickTask").value },
+        },
+      });
+      setDirty(false);
+      toast("设置已保存");
+    } catch (e) {
+      toast("保存失败：" + e.message);
+    }
+  });
+  $("reloadBtn").addEventListener("click", loadSettings);
+
+  document.querySelectorAll("[data-run]").forEach(function (b) {
+    b.addEventListener("click", async function () {
+      try {
+        await api("/api/run", { method: "POST", body: { slot: b.getAttribute("data-run") } });
+        toast("已触发，去「对话」看结果");
+        navigate("chat");
+        startPolling();
+      } catch (e) { toast("触发失败：" + e.message); }
+    });
+  });
+
+  /* ---------------- status / github ---------------- */
+  async function loadStatus() {
+    var st = await api("/api/status");
+    $("modelHint").textContent = "当前模型：" + st.model;
+    $("pagerPd").textContent = st.pager.pagerduty ? "PagerDuty ✅" : "PagerDuty 未配置";
+    $("pagerPd").className = "badge " + (st.pager.pagerduty ? "ok" : "warn");
+    $("pagerHook").textContent = st.pager.webhook ? "Webhook ✅" : "Webhook 未配置";
+    $("pagerHook").className = "badge " + (st.pager.webhook ? "ok" : "warn");
+    var gh = st.github;
+    $("githubHint").textContent = gh.connected
+      ? "已连接 GitHub：" + gh.login + "（token 来源：" + gh.tokenSource + "）"
+      : "未连接 GitHub —— 点击「连接 GitHub」授权后可选择仓库。";
+  }
+
+  function openGh() {
+    $("ghModal").classList.remove("hidden");
+    refreshGh();
+  }
+  function closeGh() { $("ghModal").classList.add("hidden"); }
+  $("ghClose").addEventListener("click", closeGh);
+  $("ghModal").addEventListener("click", function (e) { if (e.target === $("ghModal")) closeGh(); });
+
+  async function refreshGh() {
+    try {
+      var st = await api("/api/github/status");
+      $("ghConnectedBox").classList.toggle("hidden", !st.connected);
+      $("ghConnect").textContent = st.connected ? "重新授权" : "连接 GitHub";
+      if (st.connected) {
+        $("ghLogin").textContent = st.login;
+        $("ghAvatar").textContent = (st.login || "G").slice(0, 1).toUpperCase();
+        var data = await api("/api/github/repos");
+        var sel = $("ghRepoSelect");
+        sel.innerHTML = "";
+        (data.repos || []).forEach(function (r) {
+          var o = document.createElement("option");
+          o.value = r.name;
+          o.textContent = r.name + (r.private ? " 🔒" : "");
+          if (r.name === $("cfgRepo").value.trim()) o.selected = true;
+          sel.appendChild(o);
+        });
+      }
+    } catch (e) { toast(e.message); }
+  }
+
+  $("ghRepoSelect").addEventListener("change", function () {
+    $("cfgRepo").value = this.value;
+    setDirty(true);
+  });
+
+  $("ghConnect").addEventListener("click", async function () {
+    try {
+      var data = await api("/api/github/connect", { method: "POST" });
+      var w = window.open(data.url, "gh-oauth", "width=640,height=720,noopener");
+      if (!w) { window.location.href = data.url; return; }
+      toast("请在弹出的 GitHub 页面完成授权");
+    } catch (e) { toast(e.message); }
+  });
+
+  $("ghDisconnect").addEventListener("click", async function () {
+    try {
+      await api("/api/config", { method: "PUT", body: { github: { token: "", login: "" } } });
+      await refreshGh();
+      await loadStatus();
+      toast("已断开 GitHub");
+    } catch (e) { toast(e.message); }
+  });
+
+  window.addEventListener("message", function (e) {
+    if (e.data && e.data.type === "gh-connected") {
+      refreshGh();
+      loadStatus();
+      toast("GitHub 已连接");
+    }
+  });
+
+  /* ---------------- boot ---------------- */
+  async function boot() {
+    navigate("chat");
+    await Promise.all([loadMessages(), loadSettings(), loadStatus()]);
+    if (waiting) startPolling();
+  }
+
+  api("/api/session")
+    .then(function () { showApp(); boot(); })
+    .catch(function () { showLogin(); });
+})();
+</script>
+</body>
+</html>

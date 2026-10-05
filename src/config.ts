@@ -5,6 +5,7 @@
 export interface KeeperConfig {
 	repo: string;
 	extra: string;
+	github: { token: string; login: string };
 	daily: { enabled: boolean; task: string };
 	quick: { enabled: boolean; task: string };
 }
@@ -12,6 +13,7 @@ export interface KeeperConfig {
 export const DEFAULT_CONFIG: KeeperConfig = {
 	repo: process.env.TARGET_REPO ?? '',
 	extra: '',
+	github: { token: '', login: '' },
 	daily: {
 		enabled: true,
 		task: '午夜深度扫描:完整走一遍工作循环(CI、风险代码模式、可疑文件),更新记忆与 playbook,输出本次报告。',
@@ -43,6 +45,7 @@ export async function getConfig(): Promise<KeeperConfig> {
 	return {
 		...DEFAULT_CONFIG,
 		...stored,
+		github: { ...DEFAULT_CONFIG.github, ...stored.github },
 		daily: { ...DEFAULT_CONFIG.daily, ...stored.daily },
 		quick: { ...DEFAULT_CONFIG.quick, ...stored.quick },
 	};
@@ -53,6 +56,7 @@ export async function setConfig(patch: Partial<KeeperConfig>): Promise<KeeperCon
 	const next: KeeperConfig = {
 		...current,
 		...patch,
+		github: { ...current.github, ...patch.github },
 		daily: { ...current.daily, ...patch.daily },
 		quick: { ...current.quick, ...patch.quick },
 	};

@@ -6,23 +6,38 @@
 
 ## 管理页面
 
-打开 `https://celadon.chat/`（或 worker 域名），粘贴 `KEEPER_API_KEY` 后即可：
+打开 `https://celadon.chat/`，**登录 `admin` / `admin123`**（浏览器会话，30 天有效）。页面自适应桌面 / 平板 / 手机。
 
-- **设置 Agent**：附加指令（每次运行带给 Agent）
-- **绑定仓库**：目标仓库 `owner/name`，随时切换
-- **周期任务**：编辑每日深度扫描 / 每 6 小时快速巡检的任务文案，各自可开关；也可“立即运行”
-- **对话**：和长期会话 `nightly` 直接聊天，记忆 / playbook 跨次延续
+- **对话**：聊天窗口，支持 Markdown/代码块、快捷动作（深度扫描 / 快速巡检 / 记忆现状）、实时轮询回复
+- **设置**（独立页面）：目标仓库、计划任务（文案 + 开关 + 立即运行）、Agent 附加指令、告警状态
+- **GitHub**（弹窗）：OAuth 授权连接 GitHub，从你的仓库列表里选要值守的仓库；也可断开重连
+- 右下角保存条，未保存修改有提示
 
-页面是单文件原生 HTML（`src/ui.ts`），配置存在自有的 `ConfigStore` Durable Object，无需额外服务。
-
-管理 API（都需 Bearer `KEEPER_API_KEY`）：
+管理 API（登录后会话 Cookie 或 Bearer `KEEPER_API_KEY` 均可）：
 
 ```
-GET  /api/config        读配置
-PUT  /api/config        改配置 {repo, extra, daily:{enabled,task}, quick:{enabled,task}}
-POST /api/run           立即运行 {slot:"daily"|"quick"}
-POST /agents/keeper/nightly   对话（同页面聊天）
+POST /api/login / /api/logout / GET /api/session   会话
+GET  /api/status         总览（仓库 / GitHub / 告警 / 模型 / cron）
+GET  /api/config         读配置
+PUT  /api/config         改配置 {repo, extra, daily, quick, github}
+POST /api/run            立即运行 {slot:"daily"|"quick"}
+POST /api/github/connect + /api/github/callback + /api/github/repos   GitHub 授权链路
+POST /agents/keeper/nightly   对话
 ```
+
+### GitHub 授权（弹窗连接用）
+
+1. GitHub → Settings → Developer settings → **OAuth Apps** → New OAuth App
+   - Homepage URL：`https://celadon.chat`
+   - Authorization callback URL：`https://celadon.chat/api/github/callback`
+2. 把 Client ID / Client Secret 存进 Cloudflare：
+
+```bash
+npx wrangler secret put GITHUB_CLIENT_ID
+npx wrangler secret put GITHUB_CLIENT_SECRET
+```
+
+授权后获得的 token 存在 ConfigStore，仓库工具自动优先用它；未连接时退回 `GITHUB_TOKEN` 或 GitHub App。
 
 ## 工作方式
 
@@ -46,8 +61,8 @@ Cloudflare Cron Trigger (wrangler.jsonc)
 ## 目录
 
 ```
-src/app.ts            HTTP 入口（页面 / 管理 API / 挂载 agent）
-src/ui.ts             管理页面（单文件 HTML）
+src/app.ts            HTTP 入口（会话 / 页面 / 管理 API / 挂载 agent）
+src/public/index.html 管理页面（完整 SPA：登录、聊天、设置、GitHub 弹窗）
 src/config.ts         配置读写（ConfigStore Durable Object）
 src/cloudflare.ts     ConfigStore DO 定义 + scheduled handler：cron → dispatch
 src/agents/keeper.ts  Agent 本体（'use agent'，工具、记忆、playbook）

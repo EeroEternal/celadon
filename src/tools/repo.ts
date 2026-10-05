@@ -44,6 +44,8 @@ async function appInstallationToken(): Promise<string> {
 }
 
 async function token(): Promise<string> {
+	const connected = (await getConfig()).github.token;
+	if (connected) return connected;
 	if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
 	return appInstallationToken();
 }
