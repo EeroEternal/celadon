@@ -1,0 +1,28 @@
+{
+  "name": "xgateway-keeper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Long-running, self-optimizing maintenance agent for the xgateway project. Flue + Cloudflare Workers.",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "deploy": "vite build && wrangler deploy",
+    "check": "tsc --noEmit && node --test test/",
+    "scan": "flue run src/agents/keeper.ts --id adhoc"
+  },
+  "dependencies": {
+    "@flue/cli": "^2.2.2",
+    "@flue/runtime": "^2.2.2",
+    "@flue/vite": "^2.2.2",
+    "hono": "^4.4.0",
+    "valibot": "^1.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.62.0",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.0",
+    "vite": "^8.0.0",
+    "wrangler": "^4.147.0"
+  }
+}
