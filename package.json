@@ -1,9 +1,9 @@
 {
-  "name": "repo-keeper",
+  "name": "bonsai",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Long-running, self-optimizing repo keeper agent (Flue + Cloudflare Workers). Watches one target repo, scans on a schedule, keeps memory, pages humans.",
+  "description": "Bonsai: long-running, self-optimizing repo keeper agent (Flue + Cloudflare Workers). Watches one target repo, scans on a schedule, keeps memory, pages humans.",
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",

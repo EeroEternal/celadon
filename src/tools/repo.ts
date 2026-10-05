@@ -20,7 +20,7 @@ async function gh(path: string): Promise<unknown> {
 		headers: {
 			authorization: `Bearer ${token()}`,
 			accept: 'application/vnd.github+json',
-			'user-agent': 'repo-keeper',
+			'user-agent': 'bonsai',
 		},
 	});
 	if (!res.ok) throw new Error(`GitHub ${path} -> ${res.status} ${await res.text()}`);
