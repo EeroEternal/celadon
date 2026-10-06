@@ -84,13 +84,12 @@
   /* ---------- chat ---------- */
   .chat-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
   .messages { flex: 1; overflow-y: auto; min-height: 0; padding: 26px 24px 12px; }
-  .msg-row { display: flex; gap: 12px; margin: 0 auto 20px; max-width: 860px; }
+  .msg-row { display: flex; margin: 0 auto 14px; max-width: 860px; }
   .msg-row.user { flex-direction: row-reverse; }
-  .bubble { max-width: 78%; padding: 12px 16px; border-radius: 16px; background: var(--panel);
+  .bubble { max-width: 82%; padding: 11px 15px; border-radius: 16px; background: var(--panel);
     border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(16,24,40,.05); overflow-wrap: anywhere; }
   .msg-row.user .bubble { background: var(--primary); color: #fff; border-color: var(--primary); }
-  .bubble .meta { font-size: 11.5px; color: var(--muted); margin-bottom: 4px; }
-  .msg-row.user .bubble .meta { color: rgba(255,255,255,.75); }
+  .time-divider { text-align: center; color: var(--muted); font-size: 11.5px; margin: 18px 0 12px; }
   .bubble pre { background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 10px; overflow-x: auto; font-size: 13px; }
   .bubble code { background: rgba(107,114,128,.12); padding: 1px 6px; border-radius: 6px; font-size: 13px; }
   .bubble pre code { background: transparent; padding: 0; }
@@ -142,7 +141,7 @@
   .drawer-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.4); z-index: 30; }
 
   /* ---------- responsive ---------- */
-  @media (max-width: 900px) {
+  @media (max-width: 1100px) {
     .shell { grid-template-columns: 1fr; }
     .hamburger { display: inline-flex; }
     .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 250px; z-index: 40; height: 100dvh;
@@ -442,6 +441,7 @@
     var box = $("messages");
     var html = "";
     var shown = 0;
+    var prevTs = 0;
     for (var i = 0; i < messages.length; i++) {
       var m = messages[i];
       if (m.role !== "user" && m.role !== "assistant") continue;
@@ -452,15 +452,18 @@
       }
       if (!text.trim()) continue;
       shown++;
+      var ts = Date.parse(m.timestamp) || 0;
+      if (!prevTs || ts - prevTs > 5 * 60 * 1000) {
+        html += '<div class="time-divider">' + esc(fmtTime(m.timestamp)) + "</div>";
+      }
+      prevTs = ts;
       var isUser = m.role === "user";
       html += '<div class="msg-row ' + (isUser ? "user" : "assistant") + '">' +
-        '<div class="avatar">' + (isUser ? "A" : "B") + "</div>" +
-        '<div class="bubble"><div class="meta">' + (isUser ? "admin" : "bonsai") + " · " + esc(fmtTime(m.timestamp)) + "</div>" +
-        (isUser ? "<p>" + esc(text) + "</p>" : md(text)) + "</div></div>";
+        '<div class="bubble">' + (isUser ? "<p>" + esc(text) + "</p>" : md(text)) + "</div></div>";
     }
     if (waiting) {
-      html += '<div class="msg-row assistant"><div class="avatar">B</div><div class="bubble">' +
-        '<div class="meta">bonsai 正在思考…</div><div class="typing"><i></i><i></i><i></i></div></div></div>';
+      html += '<div class="msg-row assistant"><div class="bubble">' +
+        '<div class="typing"><i></i><i></i><i></i></div></div></div>';
     }
     if (!shown && !waiting) {
       html = '<div style="text-align:center;color:var(--muted);padding:48px 16px">' +

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { dispatch } from '@flue/runtime';
 import { createAgentRouter } from '@flue/runtime/routing';
@@ -240,6 +241,16 @@ app.get('/api/github/repos', async (c) => {
 
 // ---- agents + UI -------------------------------------------------------
 app.route('/agents/keeper', createAgentRouter(Keeper));
+
+// 版本号跳转：每次部署 URL 都变，强制任何浏览器缓存失效。
+const UI_VERSION = createHash('sha256').update(UI_HTML).digest('hex').slice(0, 8);
+
+app.get('/', (c) => c.redirect(`/ui?v=${UI_VERSION}`, 302));
+
+app.get('/ui', (c) => {
+	c.header('Cache-Control', 'no-store');
+	return c.html(UI_HTML);
+});
 
 app.get('/*', (c) => {
 	c.header('Cache-Control', 'no-store');
