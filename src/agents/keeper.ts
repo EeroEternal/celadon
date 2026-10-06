@@ -2,6 +2,7 @@
 
 import { useModel, usePersistentState, useTool } from '@flue/runtime';
 import * as v from 'valibot';
+import { getConfig } from '../config.ts';
 import { sendPage, type Severity } from '../tools/pager.ts';
 import { repoCi, repoList, repoOpenIssue, repoRead, repoSearch } from '../tools/repo.ts';
 
@@ -22,8 +23,31 @@ const MemorySchema = v.array(
 	v.object({ id: v.number(), kind: v.picklist(['fact', 'finding', 'action']), note: v.string(), at: v.string() }),
 );
 
+// 模型连接可配置：设置页保存到 ConfigStore，这里每次渲染刷新一次，
+// 下一次模型调用即用新配置（API key 也同步进 process.env 供 provider 解析）。
+const live = {
+	model: process.env.KEEPER_MODEL ?? 'cloudflare/deepseek/deepseek-chat',
+	loaded: false,
+};
+
+async function refreshModelConfig(): Promise<void> {
+	try {
+		const cfg = await getConfig();
+		if (cfg.model) live.model = cfg.model;
+		if (cfg.apiKeyEnv && cfg.apiKey) (process.env as Record<string, string>)[cfg.apiKeyEnv] = cfg.apiKey;
+	} catch {
+		/* keep defaults */
+	}
+}
+
 export function Keeper() {
-	useModel(process.env.KEEPER_MODEL ?? 'cloudflare/@cf/moonshotai/kimi-k2.6');
+	if (!live.loaded) {
+		live.loaded = true;
+		void refreshModelConfig();
+	} else {
+		void refreshModelConfig();
+	}
+	useModel(live.model);
 
 	const [memory, setMemory] = usePersistentState<MemoryEntry[]>('memory', []);
 	const [playbook, setPlaybook] = usePersistentState('playbook', DEFAULT_PLAYBOOK);

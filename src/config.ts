@@ -14,6 +14,9 @@ export interface SessionInfo {
 export interface KeeperConfig {
 	repo: string;
 	extra: string;
+	model: string;
+	apiKeyEnv: string;
+	apiKey: string;
 	github: { token: string; login: string };
 	sessions: SessionInfo[];
 	daily: { enabled: boolean; task: string };
@@ -23,6 +26,9 @@ export interface KeeperConfig {
 export const DEFAULT_CONFIG: KeeperConfig = {
 	repo: process.env.TARGET_REPO ?? '',
 	extra: '',
+	model: '',
+	apiKeyEnv: '',
+	apiKey: '',
 	github: { token: '', login: '' },
 	sessions: [],
 	daily: {
@@ -57,6 +63,9 @@ export async function getConfig(): Promise<KeeperConfig> {
 		...DEFAULT_CONFIG,
 		...stored,
 		github: { ...DEFAULT_CONFIG.github, ...stored.github },
+		model: stored.model ?? DEFAULT_CONFIG.model,
+		apiKeyEnv: stored.apiKeyEnv ?? DEFAULT_CONFIG.apiKeyEnv,
+		apiKey: stored.apiKey ?? DEFAULT_CONFIG.apiKey,
 		daily: { ...DEFAULT_CONFIG.daily, ...stored.daily },
 		quick: { ...DEFAULT_CONFIG.quick, ...stored.quick },
 	};
