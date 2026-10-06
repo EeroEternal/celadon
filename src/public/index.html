@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-store">
-<title>bonsai · 仓库值守</title>
+<title>bonsai</title>
 <style>
   :root {
     --bg: #f6f7fb; --panel: #ffffff; --border: #e5e7f0; --text: #171a2b; --muted: #6b7280;
@@ -50,8 +50,10 @@
   .btn-primary:hover:not(:disabled) { background: #4338ca; }
   .btn-ghost { background: #fff; border-color: var(--border); color: var(--text); }
   .btn-ghost:hover:not(:disabled) { background: var(--bg); }
+  .btn-danger { background: #fff; border-color: #fecaca; color: var(--danger); }
   .btn-block { width: 100%; }
   .btn-sm { padding: 7px 12px; font-size: 13.5px; }
+  .icon-btn { width: 40px; height: 40px; padding: 0; border-radius: 10px; font-size: 18px; }
 
   /* ---------- shell ---------- */
   .shell { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
@@ -67,15 +69,14 @@
   .user-box { border-top: 1px solid var(--border); padding-top: 12px; display: flex; align-items: center; gap: 10px; }
   .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--primary-soft); color: var(--primary);
     display: grid; place-items: center; font-weight: 700; flex: none; }
-  .user-box .who { flex: 1; min-width: 0; }
   .user-box .who b { display: block; font-size: 13.5px; }
   .user-box .who span { color: var(--muted); font-size: 12px; }
 
   main { min-width: 0; display: flex; flex-direction: column; }
-  .page-header { display: flex; align-items: center; gap: 12px; padding: 18px 24px; background: var(--panel);
+  .page-header { display: flex; align-items: center; gap: 12px; padding: 14px 24px; background: var(--panel);
     border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
-  .page-header h1 { font-size: 17px; margin: 0; }
-  .page-header .sub { color: var(--muted); font-size: 13px; }
+  .page-header h1 { font-size: 16.5px; margin: 0; }
+  .page-header .sub { color: var(--muted); font-size: 12.5px; }
   .page-header .grow { flex: 1; }
   .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
     font-size: 12px; font-weight: 600; background: var(--bg); color: var(--muted); border: 1px solid var(--border); }
@@ -106,10 +107,6 @@
   .composer { border-top: 1px solid var(--border); background: var(--panel); padding: 14px 24px 18px; }
   .composer .inner { max-width: 860px; margin: 0 auto; display: flex; gap: 10px; align-items: flex-end; }
   .composer textarea { min-height: 48px; max-height: 180px; flex: 1; }
-  .quick-actions { max-width: 860px; margin: 0 auto 10px; display: flex; gap: 8px; flex-wrap: wrap; }
-  .chip { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: #fff;
-    font-size: 13px; color: #374151; }
-  .chip:hover { background: var(--primary-soft); color: var(--primary); border-color: #c7d2fe; }
 
   /* ---------- settings ---------- */
   .settings-body { padding: 24px; max-width: 860px; width: 100%; margin: 0 auto; }
@@ -119,7 +116,7 @@
   .card .desc { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
   .row { display: flex; gap: 16px; }
   .row > * { flex: 1; min-width: 0; }
-  .switch-row { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; }
+  .switch-row { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; flex-wrap: wrap; }
   .switch { position: relative; width: 42px; height: 24px; flex: none; }
   .switch input { opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; position: absolute; z-index: 1; }
   .switch .track { position: absolute; inset: 0; background: #d1d5db; border-radius: 999px; transition: background .15s; }
@@ -130,39 +127,30 @@
   .save-bar { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 10px;
     background: rgba(255,255,255,.92); backdrop-filter: blur(6px); border-top: 1px solid var(--border);
     padding: 12px 24px; margin-top: 8px; }
+  .gh-connected { display: flex; align-items: center; gap: 10px; padding: 12px; background: var(--bg); border-radius: 10px; }
 
-  /* ---------- modal / toast ---------- */
-  .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: grid; place-items: center;
-    padding: 20px; z-index: 50; }
-  .modal { background: var(--panel); border-radius: 16px; max-width: 520px; width: 100%; padding: 24px;
-    box-shadow: var(--shadow); max-height: 85vh; overflow-y: auto; }
-  .modal h3 { margin: 0 0 6px; font-size: 17px; }
-  .modal .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  /* ---------- toast ---------- */
   #toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 99; display: flex;
     flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
   .toast-item { background: #111827; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13.5px;
     box-shadow: var(--shadow); opacity: .96; }
 
   /* ---------- responsive ---------- */
-  .tabbar { display: none; }
   @media (max-width: 900px) {
     .shell { grid-template-columns: 1fr; }
     .sidebar { display: none; }
-    .tabbar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: var(--panel);
-      border-top: 1px solid var(--border); z-index: 20; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); }
-    .tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px;
-      border: 0; background: transparent; color: var(--muted); font-size: 11.5px; border-radius: 10px; }
-    .tabbar button.active { color: var(--primary); background: var(--primary-soft); }
-    .tabbar .ico { font-size: 19px; }
     .messages { padding: 18px 14px 8px; }
-    .composer { padding: 10px 14px calc(72px + env(safe-area-inset-bottom)); }
+    .composer { padding: 10px 14px calc(14px + env(safe-area-inset-bottom)); }
     .bubble { max-width: 86%; }
-    .page-header { padding: 14px 16px; }
+    .page-header { padding: 10px 14px; }
     .settings-body { padding: 16px; }
     .row { flex-direction: column; }
+    .save-bar { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
+  }
+  @media (min-width: 901px) {
+    .mobile-only { display: none !important; }
   }
   @media (max-width: 480px) {
-    .page-header .sub { display: none; }
     .auth-card { padding: 24px; }
   }
 </style>
@@ -175,7 +163,7 @@
   <div class="auth-card">
     <div class="brand"><div class="logo">🌱</div> bonsai</div>
     <h1>登录</h1>
-    <p class="sub">仓库值守 Agent 控制台</p>
+    <p class="sub">AI 助手 · 仓库值守</p>
     <form id="loginForm">
       <label class="field">用户名</label>
       <input type="text" id="loginUser" autocomplete="username" value="admin">
@@ -193,12 +181,10 @@
     <div class="brand"><div class="logo">🌱</div> bonsai</div>
     <button class="nav-item" data-page="chat"><span class="ico">💬</span> 对话</button>
     <button class="nav-item" data-page="settings"><span class="ico">⚙️</span> 设置</button>
-    <button class="nav-item" data-page="github"><span class="ico">🔗</span> GitHub</button>
     <div class="spacer"></div>
     <div class="user-box">
       <div class="avatar">A</div>
       <div class="who"><b>admin</b><span>已登录</span></div>
-      <button class="btn btn-ghost btn-sm" id="logoutBtn">退出</button>
     </div>
   </aside>
 
@@ -206,21 +192,14 @@
     <!-- chat page -->
     <section id="chatPage" style="flex:1;display:flex;flex-direction:column;min-height:0">
       <div class="page-header">
-        <div>
-          <h1>夜间值守会话</h1>
-          <div class="sub">长期会话 nightly · 记忆与 playbook 跨次延续</div>
-        </div>
+        <h1>bonsai</h1>
         <div class="grow"></div>
         <span class="badge ok" id="chatStatus">● 就绪</span>
+        <button class="btn btn-ghost icon-btn mobile-only" id="settingsGear" title="设置">⚙️</button>
       </div>
       <div class="chat-wrap">
         <div class="messages" id="messages"></div>
         <div class="composer">
-          <div class="quick-actions">
-            <button class="chip" data-quick="做一次深度扫描,输出完整报告">🔍 深度扫描</button>
-            <button class="chip" data-quick="做一次快速健康检查,一句话汇报">⚡ 快速巡检</button>
-            <button class="chip" data-quick="汇报你的记忆和 playbook 现状">🧠 记忆现状</button>
-          </div>
           <div class="inner">
             <textarea id="chatInput" placeholder="给 bonsai 发消息…（Enter 发送，Shift+Enter 换行）"></textarea>
             <button class="btn btn-primary" id="sendBtn">发送</button>
@@ -232,23 +211,40 @@
     <!-- settings page -->
     <section id="settingsPage" class="hidden" style="flex:1;min-height:0;overflow-y:auto">
       <div class="page-header">
-        <div>
-          <h1>设置</h1>
-          <div class="sub">仓库、计划任务与 Agent 行为</div>
-        </div>
+        <button class="btn btn-ghost icon-btn mobile-only" id="backBtn" title="返回">←</button>
+        <h1>设置</h1>
         <div class="grow"></div>
         <span class="badge" id="saveBadge">未修改</span>
       </div>
       <div class="settings-body">
         <div class="card">
           <h2>目标仓库</h2>
-          <p class="desc">bonsai 值守的仓库。连接 GitHub 后可从你的仓库里选择。</p>
+          <p class="desc">bonsai 值守的仓库。在下方「GitHub」里连接后可从你的仓库中选择。</p>
           <label class="field">仓库（owner/name）</label>
-          <div class="row">
-            <input type="text" id="cfgRepo" placeholder="EeroEternal/xgateway">
-            <select id="repoSelect" class="hidden"></select>
+          <input type="text" id="cfgRepo" placeholder="EeroEternal/xgateway">
+        </div>
+
+        <div class="card">
+          <h2>GitHub</h2>
+          <p class="desc">连接后可读代码、看 CI、开 issue，并选择要值守的仓库。</p>
+          <div id="ghConnectedBox" class="hidden">
+            <div class="gh-connected">
+              <div class="avatar" id="ghAvatar">G</div>
+              <div style="flex:1"><b id="ghLogin">-</b><div class="hint">已连接 GitHub</div></div>
+              <button class="btn btn-ghost btn-sm" id="ghDisconnect">断开</button>
+            </div>
+            <label class="field">选择仓库</label>
+            <select id="ghRepoSelect"></select>
           </div>
-          <div class="hint" id="githubHint">未连接 GitHub —— 点击右下角「连接 GitHub」授权后可选择仓库。</div>
+          <div id="ghTokenBox">
+            <label class="field">用 Personal Access Token 连接（不需要 OAuth App）</label>
+            <input type="text" id="ghTokenInput" placeholder="github_pat_... 或 ghp_...（需要 repo 权限）">
+            <div class="hint">Token 只存入本服务的 Durable Object，用于读代码 / 看 CI / 开 issue。</div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" id="ghTokenSave">用 Token 连接</button>
+            <button class="btn btn-ghost btn-sm" id="ghConnect">OAuth 授权</button>
+          </div>
         </div>
 
         <div class="card">
@@ -287,6 +283,12 @@
           </div>
           <div class="hint">设置方法：<code>npx wrangler secret put PAGER_ROUTING_KEY</code>（PagerDuty Events v2）或 <code>PAGER_WEBHOOK_URL</code>。</div>
         </div>
+
+        <div class="card">
+          <h2>会话</h2>
+          <p class="desc">当前登录：admin</p>
+          <button class="btn btn-danger" id="logoutBtn">退出登录</button>
+        </div>
       </div>
       <div class="save-bar">
         <button class="btn btn-ghost" id="reloadBtn">放弃修改</button>
@@ -294,42 +296,6 @@
       </div>
     </section>
   </main>
-
-  <nav class="tabbar">
-    <button data-page="chat"><span class="ico">💬</span>对话</button>
-    <button data-page="settings"><span class="ico">⚙️</span>设置</button>
-    <button data-page="github"><span class="ico">🔗</span>GitHub</button>
-    <button id="logoutBtnMobile"><span class="ico">🚪</span>退出</button>
-  </nav>
-</div>
-
-<!-- ================= github dialog ================= -->
-<div class="modal-backdrop hidden" id="ghModal">
-  <div class="modal">
-    <h3>连接 GitHub</h3>
-    <p class="desc" style="color:var(--muted);font-size:13.5px">
-      在弹出的 GitHub 页面完成授权，然后选择要值守的仓库。授权后 bonsai 可以读代码、看 CI、开 issue。
-    </p>
-    <div id="ghConnectedBox" class="hidden">
-      <div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg);border-radius:10px">
-        <div class="avatar" id="ghAvatar">G</div>
-        <div style="flex:1"><b id="ghLogin">-</b><div class="hint">已连接 GitHub</div></div>
-        <button class="btn btn-ghost btn-sm" id="ghDisconnect">断开</button>
-      </div>
-      <label class="field">选择仓库</label>
-      <select id="ghRepoSelect"></select>
-    </div>
-    <div id="ghTokenBox">
-      <label class="field">或者：用 Personal Access Token 连接（不需要 OAuth App）</label>
-      <input type="text" id="ghTokenInput" placeholder="github_pat_... 或 ghp_...（需要 repo 权限）">
-      <div class="hint">Token 只存入本服务的 Durable Object，用于读代码 / 看 CI / 开 issue。</div>
-    </div>
-    <div class="actions">
-      <button class="btn btn-ghost" id="ghClose">关闭</button>
-      <button class="btn btn-ghost" id="ghTokenSave">用 Token 连接</button>
-      <button class="btn btn-primary" id="ghConnect">连接 GitHub</button>
-    </div>
-  </div>
 </div>
 
 <script>
@@ -393,13 +359,9 @@
     showLogin();
   }
   $("logoutBtn").addEventListener("click", logout);
-  $("logoutBtnMobile").addEventListener("click", logout);
 
   /* ---------------- router ---------------- */
-  var page = "chat";
   function navigate(next) {
-    if (next === "github") { openGh(); return; }
-    page = next;
     $("chatPage").classList.toggle("hidden", next !== "chat");
     $("settingsPage").classList.toggle("hidden", next !== "settings");
     document.querySelectorAll("[data-page]").forEach(function (b) {
@@ -410,6 +372,8 @@
   document.querySelectorAll("[data-page]").forEach(function (b) {
     b.addEventListener("click", function () { navigate(b.getAttribute("data-page")); });
   });
+  $("settingsGear").addEventListener("click", function () { navigate("settings"); });
+  $("backBtn").addEventListener("click", function () { navigate("chat"); });
 
   /* ---------------- chat ---------------- */
   var messages = [];
@@ -477,7 +441,7 @@
     }
     if (!shown && !waiting) {
       html = '<div style="text-align:center;color:var(--muted);padding:48px 16px">' +
-        '<div style="font-size:40px">🌱</div><p>还没有对话。发条消息，或用下方快捷动作触发一次巡检。</p></div>';
+        '<div style="font-size:40px">🌱</div><p>有什么可以帮忙的？</p></div>';
     }
     box.innerHTML = html;
     scrollMessages();
@@ -534,9 +498,6 @@
   $("sendBtn").addEventListener("click", function () { send($("chatInput").value); });
   $("chatInput").addEventListener("keydown", function (e) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("chatInput").value); }
-  });
-  document.querySelectorAll("[data-quick]").forEach(function (b) {
-    b.addEventListener("click", function () { send(b.getAttribute("data-quick")); });
   });
 
   /* ---------------- settings ---------------- */
@@ -604,26 +565,13 @@
     $("pagerPd").className = "badge " + (st.pager.pagerduty ? "ok" : "warn");
     $("pagerHook").textContent = st.pager.webhook ? "Webhook ✅" : "Webhook 未配置";
     $("pagerHook").className = "badge " + (st.pager.webhook ? "ok" : "warn");
-    var gh = st.github;
-    $("githubHint").textContent = gh.connected
-      ? "已连接 GitHub：" + gh.login + "（token 来源：" + gh.tokenSource + "）"
-      : "未连接 GitHub —— 点击「连接 GitHub」授权后可选择仓库。";
   }
-
-  function openGh() {
-    $("ghModal").classList.remove("hidden");
-    refreshGh();
-  }
-  function closeGh() { $("ghModal").classList.add("hidden"); }
-  $("ghClose").addEventListener("click", closeGh);
-  $("ghModal").addEventListener("click", function (e) { if (e.target === $("ghModal")) closeGh(); });
 
   async function refreshGh() {
     try {
       var st = await api("/api/github/status");
       $("ghConnectedBox").classList.toggle("hidden", !st.connected);
       $("ghTokenBox").classList.toggle("hidden", st.connected);
-      $("ghConnect").textContent = st.connected ? "重新授权" : "OAuth 授权";
       if (st.connected) {
         $("ghLogin").textContent = st.login || "已连接（Token）";
         $("ghAvatar").textContent = (st.login || "G").slice(0, 1).toUpperCase();
@@ -638,7 +586,7 @@
           sel.appendChild(o);
         });
       }
-    } catch (e) { toast(e.message); }
+    } catch (e) { /* status only */ }
   }
 
   $("ghRepoSelect").addEventListener("change", function () {
@@ -653,17 +601,18 @@
       await api("/api/github/connect", { method: "POST", body: { token: token } });
       $("ghTokenInput").value = "";
       await refreshGh();
-      await loadStatus();
       toast("GitHub 已连接");
     } catch (e) { toast(e.message); }
   });
 
   $("ghConnect").addEventListener("click", async function () {
     try {
-      var data = await api("/api/github/connect", { method: "POST" });
-      var w = window.open(data.url, "gh-oauth", "width=640,height=720,noopener");
-      if (!w) { window.location.href = data.url; return; }
-      toast("请在弹出的 GitHub 页面完成授权");
+      var data = await api("/api/github/connect", { method: "POST", body: {} });
+      if (data.url) {
+        var w = window.open(data.url, "gh-oauth", "width=640,height=720,noopener");
+        if (!w) { window.location.href = data.url; return; }
+        toast("请在弹出的 GitHub 页面完成授权");
+      }
     } catch (e) { toast(e.message); }
   });
 
@@ -671,7 +620,6 @@
     try {
       await api("/api/config", { method: "PUT", body: { github: { token: "", login: "" } } });
       await refreshGh();
-      await loadStatus();
       toast("已断开 GitHub");
     } catch (e) { toast(e.message); }
   });
@@ -679,7 +627,6 @@
   window.addEventListener("message", function (e) {
     if (e.data && e.data.type === "gh-connected") {
       refreshGh();
-      loadStatus();
       toast("GitHub 已连接");
     }
   });
@@ -687,7 +634,7 @@
   /* ---------------- boot ---------------- */
   async function boot() {
     navigate("chat");
-    await Promise.all([loadMessages(), loadSettings(), loadStatus()]);
+    await Promise.all([loadMessages(), loadSettings(), loadStatus(), refreshGh()]);
     if (waiting) startPolling();
   }
 
