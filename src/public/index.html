@@ -431,7 +431,7 @@
       t.className = "title";
       t.textContent = s.title || s.id;
       item.appendChild(t);
-      if (s.id !== "main") {
+      {
         var del = document.createElement("button");
         del.className = "del";
         del.textContent = "×";
@@ -441,8 +441,8 @@
           try {
             await api("/api/sessions/" + encodeURIComponent(s.id), { method: "DELETE" });
             toast("会话已删除");
-            if (currentId === s.id) switchSession("main");
-            else await loadSessions();
+            await loadSessions();
+            switchSession(currentId);
           } catch (err) { toast(err.message); }
         });
         item.appendChild(del);
@@ -456,9 +456,9 @@
     try {
       var data = await api("/api/sessions");
       sessions = data.sessions || [];
-      if (!sessions.some(function (s) { return s.id === currentId; })) {
-        currentId = sessions.length ? sessions[0].id : "main";
-      }
+      if (!sessions.length) sessions = [await api("/api/sessions", { method: "POST" })];
+      if (!sessions.some(function (s) { return s.id === currentId; })) currentId = sessions[0].id;
+      localStorage.setItem("bonsaiSession", currentId);
       renderSessions();
     } catch (e) { /* transient */ }
   }
@@ -670,7 +670,7 @@
   document.querySelectorAll("[data-run]").forEach(function (b) {
     b.addEventListener("click", async function () {
       try {
-        await api("/api/run", { method: "POST", body: { slot: b.getAttribute("data-run") } });
+        await api("/api/run", { method: "POST", body: { slot: b.getAttribute("data-run"), session: currentId } });
         toast("已触发，去「对话」看结果");
         navigate("chat");
         startPolling();

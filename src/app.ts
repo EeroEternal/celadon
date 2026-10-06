@@ -138,11 +138,7 @@ app.put('/api/config', async (c) => {
 // ---- sessions ----------------------------------------------------------
 app.get('/api/sessions', async (c) => {
 	const cfg = await getConfig();
-	const sessions = [
-		{ id: CONVERSATION_ID, title: '值守会话', updatedAt: '' },
-		...cfg.sessions.filter((s) => s.id !== CONVERSATION_ID),
-	];
-	return c.json({ sessions });
+	return c.json({ sessions: cfg.sessions.filter((s) => s.id !== CONVERSATION_ID) });
 });
 
 app.post('/api/sessions', async (c) => {
@@ -174,11 +170,11 @@ app.patch('/api/sessions/:id', async (c) => {
 
 // ---- runs --------------------------------------------------------------
 app.post('/api/run', async (c) => {
-	const { slot } = (await c.req.json()) as { slot?: 'daily' | 'quick' };
+	const { slot, session } = (await c.req.json()) as { slot?: 'daily' | 'quick'; session?: string };
 	const cfg = await getConfig();
 	const s = slot === 'quick' ? cfg.quick : cfg.daily;
 	const receipt = await dispatch(Keeper, {
-		id: CONVERSATION_ID,
+		id: session || CONVERSATION_ID,
 		message: {
 			kind: 'signal',
 			type: 'schedule',

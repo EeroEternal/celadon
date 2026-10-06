@@ -24,7 +24,7 @@ export const DEFAULT_CONFIG: KeeperConfig = {
 	repo: process.env.TARGET_REPO ?? '',
 	extra: '',
 	github: { token: '', login: '' },
-	sessions: [{ id: CONVERSATION_ID, title: '值守会话', updatedAt: '' }],
+	sessions: [],
 	daily: {
 		enabled: true,
 		task: '午夜深度扫描:完整走一遍工作循环(CI、风险代码模式、可疑文件),更新记忆与 playbook,输出本次报告。',
