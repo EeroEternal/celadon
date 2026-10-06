@@ -5,7 +5,7 @@ import { createAgentRouter } from '@flue/runtime/routing';
 import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { Keeper } from './agents/keeper.ts';
-import { getConfig, setConfig } from './config.ts';
+import { CONVERSATION_ID, getConfig, setConfig } from './config.ts';
 import UI_HTML from './public/index.html?raw';
 
 const app = new Hono();
@@ -141,7 +141,7 @@ app.post('/api/run', async (c) => {
 	const cfg = await getConfig();
 	const s = slot === 'quick' ? cfg.quick : cfg.daily;
 	const receipt = await dispatch(Keeper, {
-		id: 'nightly',
+		id: CONVERSATION_ID,
 		message: {
 			kind: 'signal',
 			type: 'schedule',

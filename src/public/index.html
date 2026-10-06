@@ -480,7 +480,7 @@
 
   async function loadMessages() {
     try {
-      var data = await api("/agents/keeper/nightly?view=history");
+      var data = await api("/agents/keeper/main?view=history");
       messages = data.messages || [];
       waiting = lastAssistantTs() <= baselineAssistantTs;
       renderMessages();
@@ -497,7 +497,7 @@
     messages.push({ role: "user", timestamp: new Date().toISOString(), parts: [{ type: "text", text: text }] });
     renderMessages();
     try {
-      await api("/agents/keeper/nightly", { method: "POST", body: { kind: "user", body: text } });
+      await api("/agents/keeper/main", { method: "POST", body: { kind: "user", body: text } });
     } catch (e) {
       waiting = false;
       toast("发送失败：" + e.message);

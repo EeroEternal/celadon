@@ -1,7 +1,7 @@
 import { dispatch } from '@flue/runtime';
 import { DurableObject } from 'cloudflare:workers';
 import { Keeper } from './agents/keeper.ts';
-import { getConfig } from './config.ts';
+import { CONVERSATION_ID, getConfig } from './config.ts';
 
 // App-owned Durable Object: one instance ("default") holds the keeper config
 // edited from the web page at celadon.chat/.
@@ -15,9 +15,9 @@ export class ConfigStore extends DurableObject {
 	}
 }
 
-// One long-running conversation: every fire continues the same 'nightly' instance,
-// so memory and playbook carry over from night to night.
-const ID = 'nightly';
+// One long-running conversation: every fire continues the same instance,
+// so memory and playbook carry over from run to run.
+const ID = CONVERSATION_ID;
 
 export default {
 	async scheduled(controller: { cron: string; scheduledTime: number }) {

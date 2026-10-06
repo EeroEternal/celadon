@@ -2,6 +2,9 @@
 // Stored in the app-owned ConfigStore Durable Object (see cloudflare.ts),
 // readable from the Worker (scheduled handler, admin API) and from agent tools.
 
+// 长期会话 ID：所有定时触发和网页对话都投递到同一个会话。
+export const CONVERSATION_ID = 'main';
+
 export interface KeeperConfig {
 	repo: string;
 	extra: string;
