@@ -18,7 +18,7 @@ export function pagerPayload(severity: Severity, summary: string, source: string
 
 /** Fire a page: PagerDuty Events v2 when PAGER_ROUTING_KEY is set,
  *  else a plain JSON webhook at PAGER_WEBHOOK_URL. */
-export async function sendPage(severity: Severity, summary: string, source = 'bonsai'): Promise<string> {
+export async function sendPage(severity: Severity, summary: string, source = 'celadon'): Promise<string> {
 	if (process.env.PAGER_ROUTING_KEY) {
 		const res = await fetch('https://events.pagerduty.com/v2/enqueue', {
 			method: 'POST',

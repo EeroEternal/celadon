@@ -1,8 +1,9 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "bonsai",
+  "name": "celadon",
   "compatibility_date": "2026-06-01",
   "compatibility_flags": ["nodejs_compat"],
+  "routes": [{ "pattern": "celadon.chat", "custom_domain": true }],
   // Workers AI binding:让 useModel('cloudflare/...') 可用
   "ai": { "binding": "AI" },
   // Midnight UTC: deep nightly scan. Every 6 hours: quick health scan.

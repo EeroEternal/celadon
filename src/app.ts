@@ -10,7 +10,7 @@ import { Keeper } from './agents/keeper.ts';
 import { CONVERSATION_ID, getConfig, setConfig } from './config.ts';
 import UI_HTML from './public/index.html?raw';
 
-// 路由所有 cloudflare/* 模型调用经由具名 AI Gateway（Cloudflare 控制台里建的 "bonsai" 网关，
+// 路由所有 cloudflare/* 模型调用经由具名 AI Gateway（id 与 Cloudflare 控制台里的网关名一致，
 // 上游可以是 DeepSeek 等任意 provider，计费走 Cloudflare，无需厂商 key）。
 setProvider(
 	cloudflareBindingProvider({
@@ -26,7 +26,7 @@ const ADMIN_USER = 'admin';
 const ADMIN_PASS = 'admin123';
 
 function sessionSecret(): string {
-	return process.env.SESSION_SECRET || process.env.KEEPER_API_KEY || 'bonsai-dev-secret';
+	return process.env.SESSION_SECRET || process.env.KEEPER_API_KEY || 'celadon-dev-secret';
 }
 
 function sign(value: string): string {
@@ -81,7 +81,7 @@ const PUBLIC_API = new Set(['/api/login', '/api/github/callback']);
 app.use('/api/*', async (c, next) => {
 	if (PUBLIC_API.has(c.req.path)) return next();
 	const bearer = c.req.header('authorization');
-	const cookie = getCookie(c, 'bonsai_session');
+	const cookie = getCookie(c, 'celadon_session');
 	const ok = (bearer && process.env.KEEPER_API_KEY && safeEqual(bearer, `Bearer ${process.env.KEEPER_API_KEY}`)) || validSession(cookie);
 	if (!ok) return c.json({ error: 'unauthorized' }, 401);
 	await next();
@@ -89,7 +89,7 @@ app.use('/api/*', async (c, next) => {
 
 app.use('/agents/*', async (c, next) => {
 	const bearer = c.req.header('authorization');
-	const cookie = getCookie(c, 'bonsai_session');
+	const cookie = getCookie(c, 'celadon_session');
 	const ok = (bearer && process.env.KEEPER_API_KEY && safeEqual(bearer, `Bearer ${process.env.KEEPER_API_KEY}`)) || validSession(cookie);
 	if (!ok) return c.json({ error: 'unauthorized' }, 401);
 	await next();
@@ -101,7 +101,7 @@ app.post('/api/login', async (c) => {
 	if (username !== ADMIN_USER || password !== ADMIN_PASS) {
 		return c.json({ error: '用户名或密码错误' }, 401);
 	}
-	setCookie(c, 'bonsai_session', issueSession(), {
+	setCookie(c, 'celadon_session', issueSession(), {
 		httpOnly: true,
 		sameSite: 'Lax',
 		secure: true,
@@ -112,7 +112,7 @@ app.post('/api/login', async (c) => {
 });
 
 app.post('/api/logout', (c) => {
-	deleteCookie(c, 'bonsai_session', { path: '/' });
+	deleteCookie(c, 'celadon_session', { path: '/' });
 	return c.json({ ok: true });
 });
 
@@ -130,7 +130,7 @@ app.get('/api/status', async (c) => {
 			tokenSource: cfg.github.token ? 'oauth' : process.env.GITHUB_TOKEN ? 'token' : 'app',
 		},
 		pager: { pagerduty: !!process.env.PAGER_ROUTING_KEY, webhook: !!process.env.PAGER_WEBHOOK_URL },
-		model: cfg.model || process.env.KEEPER_MODEL || 'cloudflare/@cf/moonshotai/kimi-k2.6',
+		model: cfg.model || process.env.KEEPER_MODEL || 'cloudflare/deepseek/deepseek-chat',
 		apiKeyEnv: cfg.apiKeyEnv,
 		apiKeySet: !!(cfg.apiKey || (cfg.apiKeyEnv && process.env[cfg.apiKeyEnv])),
 		schedules: ['0 0 * * *', '0 */6 * * *'],
@@ -203,7 +203,7 @@ app.post('/api/model-test', async (c) => {
 	const { model } = (await c.req.json()) as { model?: string };
 	const id = (model || '').trim();
 	if (!id) return c.json({ error: '请先填写模型' }, 400);
-	// 与 Agent 实际调用同路径：cloudflare/<model-id> -> env.AI.run(<model-id>) 经由 bonsai 网关
+	// 与 Agent 实际调用同路径：cloudflare/<model-id> -> env.AI.run(<model-id>) 经由 AI Gateway
 	const modelId = id.startsWith('cloudflare/') ? id.slice('cloudflare/'.length) : id;
 	try {
 		const res = await (env.AI as any).run(
@@ -238,7 +238,7 @@ app.post('/api/github/connect', async (c) => {
 			headers: {
 				authorization: `Bearer ${body.token}`,
 				accept: 'application/vnd.github+json',
-				'user-agent': 'bonsai',
+				'user-agent': 'celadon',
 			},
 		});
 		if (!res.ok) return c.json({ error: 'Token 无效或权限不足' }, 400);
@@ -281,7 +281,7 @@ app.get('/api/github/callback', async (c) => {
 			headers: {
 				authorization: `Bearer ${data.access_token}`,
 				accept: 'application/vnd.github+json',
-				'user-agent': 'bonsai',
+				'user-agent': 'celadon',
 			},
 		})
 	).json()) as { login?: string };
@@ -297,7 +297,7 @@ app.get('/api/github/repos', async (c) => {
 		headers: {
 			authorization: `Bearer ${token}`,
 			accept: 'application/vnd.github+json',
-			'user-agent': 'bonsai',
+			'user-agent': 'celadon',
 		},
 	});
 	if (!res.ok) return c.json({ error: `GitHub ${res.status}` }, 502);
@@ -310,6 +310,8 @@ app.route('/agents/keeper', createAgentRouter(Keeper));
 
 // 版本号跳转：每次部署 URL 都变，强制任何浏览器缓存失效。
 const UI_VERSION = createHash('sha256').update(UI_HTML).digest('hex').slice(0, 8);
+
+app.get('/health', (c) => c.json({ ok: true }));
 
 app.get('/', (c) => c.redirect(`/ui?v=${UI_VERSION}`, 302));
 

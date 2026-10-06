@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-store">
-<title>bonsai</title>
+<title>celadon</title>
 <style>
   :root {
     --bg: #f6f7fb; --panel: #ffffff; --border: #e5e7f0; --text: #171a2b; --muted: #6b7280;
@@ -177,7 +177,7 @@
 <!-- ================= login ================= -->
 <div id="loginView" class="auth-wrap hidden">
   <div class="auth-card">
-    <div class="brand"><div class="logo"></div> bonsai</div>
+    <div class="brand"><div class="logo"></div> celadon</div>
     <h1>登录</h1>
     <p class="sub">AI 助手</p>
     <form id="loginForm">
@@ -194,7 +194,7 @@
 <!-- ================= app ================= -->
 <div id="appView" class="shell hidden">
   <aside class="sidebar">
-    <div class="brand"><div class="logo"></div> bonsai</div>
+    <div class="brand"><div class="logo"></div> celadon</div>
     <button class="nav-item" data-page="chat">对话</button>
     <button class="nav-item" data-page="settings">设置</button>
     <div class="sessions-head"><b>会话</b><button class="btn btn-ghost btn-sm" id="newSessionBtn">新会话</button></div>
@@ -211,7 +211,7 @@
     <section id="chatPage" style="flex:1;display:flex;flex-direction:column;min-height:0">
       <div class="page-header">
         <button class="btn btn-ghost icon-btn hamburger menu-toggle" title="菜单"><span class="bars"></span></button>
-        <h1>bonsai</h1>
+        <h1>celadon</h1>
         <div class="grow"></div>
         <span class="badge ok" id="chatStatus">● 就绪</span>
       </div>
@@ -219,7 +219,7 @@
         <div class="messages" id="messages"></div>
         <div class="composer">
           <div class="inner">
-            <textarea id="chatInput" placeholder="给 bonsai 发消息…（Enter 发送，Shift+Enter 换行）"></textarea>
+            <textarea id="chatInput" placeholder="给 celadon 发消息…（Enter 发送，Shift+Enter 换行）"></textarea>
             <button class="btn btn-primary" id="sendBtn">发送</button>
           </div>
         </div>
@@ -237,7 +237,7 @@
       <div class="settings-body">
         <div class="card">
           <h2>目标仓库</h2>
-          <p class="desc">bonsai 关注的仓库。在下方「GitHub」里连接后可从你的仓库中选择。</p>
+          <p class="desc">celadon 关注的仓库。在下方「GitHub」里连接后可从你的仓库中选择。</p>
           <label class="field">仓库（owner/name）</label>
           <input type="text" id="cfgRepo" placeholder="EeroEternal/xgateway">
         </div>
@@ -269,11 +269,11 @@
 
         <div class="card">
           <h2>模型连接</h2>
-          <p class="desc">所有模型调用都经由你的 Cloudflare AI Gateway（bonsai）。BYOK 模型（如 deepseek/*）无需在下方填 key；cloudflare/@cf/* 是 Workers AI。</p>
+          <p class="desc">所有模型调用都经由你的 Cloudflare AI Gateway。BYOK 模型（如 deepseek/*）无需在下方填 key；cloudflare/@cf/* 是 Workers AI。</p>
           <label class="field">模型（provider/model-id）</label>
           <input type="text" id="cfgModel" list="modelPresets" placeholder="cloudflare/deepseek/deepseek-chat">
           <datalist id="modelPresets">
-            <option value="cloudflare/deepseek/deepseek-chat">BYOK DeepSeek（走 bonsai 网关，推荐）</option>
+            <option value="cloudflare/deepseek/deepseek-chat">BYOK DeepSeek（走 AI Gateway，推荐）</option>
             <option value="cloudflare/@cf/moonshotai/kimi-k2.6">Workers AI kimi（免 key）</option>
             <option value="cloudflare/@cf/meta/llama-3.1-8b-instruct">Workers AI llama（免 key）</option>
             <option value="anthropic/claude-sonnet-4-6">需要 ANTHROPIC_API_KEY</option>
@@ -414,7 +414,7 @@
 
   /* ---------------- sessions ---------------- */
   var sessions = [];
-  var currentId = localStorage.getItem("bonsaiSession") || "main";
+  var currentId = localStorage.getItem("celadonSession") || "main";
 
   function chatUrl(suffix) {
     return "/agents/keeper/" + encodeURIComponent(currentId) + (suffix || "");
@@ -460,14 +460,14 @@
       sessions = data.sessions || [];
       if (!sessions.length) sessions = [await api("/api/sessions", { method: "POST" })];
       if (!sessions.some(function (s) { return s.id === currentId; })) currentId = sessions[0].id;
-      localStorage.setItem("bonsaiSession", currentId);
+      localStorage.setItem("celadonSession", currentId);
       renderSessions();
     } catch (e) { /* transient */ }
   }
 
   function switchSession(id) {
     currentId = id;
-    localStorage.setItem("bonsaiSession", id);
+    localStorage.setItem("celadonSession", id);
     renderSessions();
     messages = [];
     baselineAssistantTs = 0;
@@ -638,17 +638,13 @@
     $("cfgModel").value = cfg.model || "";
     $("cfgKeyEnv").value = cfg.apiKeyEnv || "";
     $("cfgApiKey").value = "";
-    $("dailyEnabled").checked = !!cfg.daily.enabled;
-    $("dailyTask").value = cfg.daily.task || "";
-    $("quickEnabled").checked = !!cfg.quick.enabled;
-    $("quickTask").value = cfg.quick.task || "";
     setDirty(false);
   }
 
-  ["cfgRepo", "cfgModel", "cfgApiKey", "dailyTask", "quickTask"].forEach(function (id) {
+  ["cfgRepo", "cfgModel", "cfgApiKey"].forEach(function (id) {
     $(id).addEventListener("input", function () { setDirty(true); });
   });
-  ["dailyEnabled", "quickEnabled", "cfgKeyEnv"].forEach(function (id) {
+  ["cfgKeyEnv"].forEach(function (id) {
     $(id).addEventListener("change", function () { setDirty(true); });
   });
 
@@ -661,8 +657,6 @@
           model: $("cfgModel").value.trim(),
           apiKeyEnv: $("cfgKeyEnv").value,
           apiKey: $("cfgApiKey").value.trim(),
-          daily: { enabled: $("dailyEnabled").checked, task: $("dailyTask").value },
-          quick: { enabled: $("quickEnabled").checked, task: $("quickTask").value },
         },
       });
       setDirty(false);

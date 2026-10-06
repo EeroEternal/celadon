@@ -1,4 +1,4 @@
-# bonsai
+# celadon
 
 长期运行、自我优化的**仓库值守 Agent**：盯住任意一个目标仓库（`xgateway`、`xlite`、或任何 `owner/name`），每天午夜深度扫描、每 6 小时快速巡检，发现问题记录进持久记忆，紧急问题直接呼叫（page）人类。换目标仓库只需要改一个环境变量 `TARGET_REPO`。
 
@@ -92,7 +92,7 @@ npm run deploy                                  # vite build && wrangler deploy
 3. **Install App** 装到目标仓库（如 `EeroEternal/xgateway`），安装页地址里那串数字就是 **Installation ID**（也可查 `GET /app/installations`）
 4. 把三个值 `wrangler secret put` 进去（见上）
 
-bonsai 会自己用私钥签 JWT 去换 **installation access token**（1 小时有效，自动缓存续期），不再需要长期 PAT。本地开发仍可用 `GITHUB_TOKEN` 兜底。
+celadon 会自己用私钥签 JWT 去换 **installation access token**（1 小时有效，自动缓存续期），不再需要长期 PAT。本地开发仍可用 `GITHUB_TOKEN` 兜底。
 
 ## 配置（环境变量 / wrangler secrets & vars）
 

@@ -44,12 +44,12 @@ async function configDo(): Promise<{ get(): Promise<unknown>; set(v: unknown): P
 		const { env } = (await import('cloudflare:workers')) as { env: Record<string, any> };
 		const ns = env.CONFIG;
 		if (!ns) {
-			console.error('bonsai: CONFIG binding missing', Object.keys(env));
+			console.error('celadon: CONFIG binding missing', Object.keys(env));
 			return null;
 		}
 		return ns.get(ns.idFromName('default'));
 	} catch (e) {
-		console.error('bonsai configDo error:', e);
+		console.error('celadon configDo error:', e);
 		return null;
 	}
 }

@@ -34,7 +34,7 @@ async function appInstallationToken(): Promise<string> {
 		headers: {
 			authorization: `Bearer ${jwt}`,
 			accept: 'application/vnd.github+json',
-			'user-agent': 'bonsai',
+			'user-agent': 'celadon',
 		},
 	});
 	if (!res.ok) throw new Error(`GitHub app auth -> ${res.status} ${await res.text()}`);
@@ -63,7 +63,7 @@ async function gh(path: string, init?: { method?: string; body?: string }): Prom
 		headers: {
 			authorization: `Bearer ${await token()}`,
 			accept: 'application/vnd.github+json',
-			'user-agent': 'bonsai',
+			'user-agent': 'celadon',
 		},
 	});
 	if (!res.ok) throw new Error(`GitHub ${path} -> ${res.status} ${await res.text()}`);
