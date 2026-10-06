@@ -113,7 +113,7 @@ app.get('/api/status', async (c) => {
 		repo: cfg.repo,
 		github: {
 			configured: !!ghClientId(),
-			connected: !!cfg.github.login,
+			connected: !!cfg.github.login || !!cfg.github.token || !!process.env.GITHUB_TOKEN,
 			login: cfg.github.login,
 			tokenSource: cfg.github.token ? 'oauth' : process.env.GITHUB_TOKEN ? 'token' : 'app',
 		},
@@ -154,12 +154,36 @@ app.post('/api/run', async (c) => {
 // ---- github connect ----------------------------------------------------
 app.get('/api/github/status', async (c) => {
 	const cfg = await getConfig();
-	return c.json({ configured: !!ghClientId(), connected: !!cfg.github.login, login: cfg.github.login });
+	const source = cfg.github.token ? 'oauth' : process.env.GITHUB_TOKEN ? 'token' : '';
+	return c.json({
+		configured: !!ghClientId(),
+		connected: !!cfg.github.login || !!source,
+		login: cfg.github.login || '',
+		source: cfg.github.token ? 'oauth' : process.env.GITHUB_TOKEN ? 'token' : '',
+	});
 });
 
-app.post('/api/github/connect', (c) => {
+app.post('/api/github/connect', async (c) => {
+	const body = (await c.req.json().catch(() => ({}))) as { token?: string };
+	// Option 1: connect with a Personal Access Token pasted from the UI.
+	if (body.token) {
+		const res = await fetch('https://api.github.com/user', {
+			headers: {
+				authorization: `Bearer ${body.token}`,
+				accept: 'application/vnd.github+json',
+				'user-agent': 'bonsai',
+			},
+		});
+		if (!res.ok) return c.json({ error: 'Token 无效或权限不足' }, 400);
+		const user = (await res.json()) as { login?: string };
+		await setConfig({ github: { token: body.token.trim(), login: user.login ?? '' } });
+		return c.json({ connected: true, login: user.login ?? '' });
+	}
+	// Option 2: OAuth popup flow.
 	if (!ghClientId()) {
-		return c.json({ error: '未配置 GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET，见 README「GitHub 授权」' }, 400);
+		return c.json({
+			error: '未配置 GitHub OAuth App，可在下方直接粘贴 Personal Access Token 连接',
+		}, 400);
 	}
 	const url =
 		'https://github.com/login/oauth/authorize' +
@@ -187,7 +211,11 @@ app.get('/api/github/callback', async (c) => {
 	if (!data.access_token) return c.html('<p style="font-family:system-ui">授权失败：未取得 access_token</p>', 400);
 	const user = (await (
 		await fetch('https://api.github.com/user', {
-			headers: { authorization: `Bearer ${data.access_token}`, accept: 'application/vnd.github+json' },
+			headers: {
+				authorization: `Bearer ${data.access_token}`,
+				accept: 'application/vnd.github+json',
+				'user-agent': 'bonsai',
+			},
 		})
 	).json()) as { login?: string };
 	await setConfig({ github: { token: data.access_token, login: user.login ?? '' } });
@@ -199,7 +227,11 @@ app.get('/api/github/repos', async (c) => {
 	const token = cfg.github.token || process.env.GITHUB_TOKEN;
 	if (!token) return c.json({ error: '未连接 GitHub' }, 400);
 	const res = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
-		headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json' },
+		headers: {
+			authorization: `Bearer ${token}`,
+			accept: 'application/vnd.github+json',
+			'user-agent': 'bonsai',
+		},
 	});
 	if (!res.ok) return c.json({ error: `GitHub ${res.status}` }, 502);
 	const repos = (await res.json()) as Array<{ full_name: string; private: boolean }>;
@@ -209,6 +241,9 @@ app.get('/api/github/repos', async (c) => {
 // ---- agents + UI -------------------------------------------------------
 app.route('/agents/keeper', createAgentRouter(Keeper));
 
-app.get('/*', (c) => c.html(UI_HTML));
+app.get('/*', (c) => {
+	c.header('Cache-Control', 'no-store');
+	return c.html(UI_HTML);
+});
 
 export default app;

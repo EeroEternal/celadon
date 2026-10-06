@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store">
 <title>bonsai · 仓库值守</title>
 <style>
   :root {
@@ -318,8 +319,14 @@
       <label class="field">选择仓库</label>
       <select id="ghRepoSelect"></select>
     </div>
+    <div id="ghTokenBox">
+      <label class="field">或者：用 Personal Access Token 连接（不需要 OAuth App）</label>
+      <input type="text" id="ghTokenInput" placeholder="github_pat_... 或 ghp_...（需要 repo 权限）">
+      <div class="hint">Token 只存入本服务的 Durable Object，用于读代码 / 看 CI / 开 issue。</div>
+    </div>
     <div class="actions">
       <button class="btn btn-ghost" id="ghClose">关闭</button>
+      <button class="btn btn-ghost" id="ghTokenSave">用 Token 连接</button>
       <button class="btn btn-primary" id="ghConnect">连接 GitHub</button>
     </div>
   </div>
@@ -408,6 +415,22 @@
   var messages = [];
   var waiting = false;
   var pollTimer = null;
+  var baselineAssistantTs = 0;
+
+  function lastAssistantTs() {
+    var ts = 0;
+    for (var i = 0; i < messages.length; i++) {
+      var m = messages[i];
+      if (m.role !== "assistant") continue;
+      var parts = m.parts || [];
+      for (var j = 0; j < parts.length; j++) {
+        if (parts[j].type === "text" && parts[j].text && parts[j].text.trim()) {
+          ts = Math.max(ts, Date.parse(m.timestamp) || 0);
+        }
+      }
+    }
+    return ts;
+  }
 
   function md(text) {
     var out = esc(text);
@@ -465,25 +488,11 @@
     box.scrollTop = box.scrollHeight;
   }
 
-  function lastAssistantPending() {
-    if (!messages.length) return true;
-    for (var i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === "assistant") {
-        var parts = messages[i].parts || [];
-        for (var j = 0; j < parts.length; j++) {
-          if (parts[j].type === "text" && parts[j].text && parts[j].text.trim()) return false;
-        }
-        return true;
-      }
-    }
-    return true;
-  }
-
   async function loadMessages() {
     try {
       var data = await api("/agents/keeper/nightly?view=history");
       messages = data.messages || [];
-      waiting = lastAssistantPending();
+      waiting = lastAssistantTs() <= baselineAssistantTs;
       renderMessages();
       $("chatStatus").textContent = waiting ? "● 运行中" : "● 就绪";
       $("chatStatus").className = "badge " + (waiting ? "warn" : "ok");
@@ -492,6 +501,7 @@
 
   async function send(text) {
     if (!text.trim() || waiting) return;
+    baselineAssistantTs = lastAssistantTs();
     waiting = true;
     $("chatInput").value = "";
     messages.push({ role: "user", timestamp: new Date().toISOString(), parts: [{ type: "text", text: text }] });
@@ -612,9 +622,10 @@
     try {
       var st = await api("/api/github/status");
       $("ghConnectedBox").classList.toggle("hidden", !st.connected);
-      $("ghConnect").textContent = st.connected ? "重新授权" : "连接 GitHub";
+      $("ghTokenBox").classList.toggle("hidden", st.connected);
+      $("ghConnect").textContent = st.connected ? "重新授权" : "OAuth 授权";
       if (st.connected) {
-        $("ghLogin").textContent = st.login;
+        $("ghLogin").textContent = st.login || "已连接（Token）";
         $("ghAvatar").textContent = (st.login || "G").slice(0, 1).toUpperCase();
         var data = await api("/api/github/repos");
         var sel = $("ghRepoSelect");
@@ -633,6 +644,18 @@
   $("ghRepoSelect").addEventListener("change", function () {
     $("cfgRepo").value = this.value;
     setDirty(true);
+  });
+
+  $("ghTokenSave").addEventListener("click", async function () {
+    var token = $("ghTokenInput").value.trim();
+    if (!token) { toast("请先粘贴 Token"); return; }
+    try {
+      await api("/api/github/connect", { method: "POST", body: { token: token } });
+      $("ghTokenInput").value = "";
+      await refreshGh();
+      await loadStatus();
+      toast("GitHub 已连接");
+    } catch (e) { toast(e.message); }
   });
 
   $("ghConnect").addEventListener("click", async function () {
