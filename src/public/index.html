@@ -179,7 +179,7 @@
   <div class="auth-card">
     <div class="brand"><div class="logo"></div> bonsai</div>
     <h1>登录</h1>
-    <p class="sub">AI 助手 · 仓库值守</p>
+    <p class="sub">AI 助手</p>
     <form id="loginForm">
       <label class="field">用户名</label>
       <input type="text" id="loginUser" autocomplete="username" value="admin">
@@ -237,14 +237,14 @@
       <div class="settings-body">
         <div class="card">
           <h2>目标仓库</h2>
-          <p class="desc">bonsai 值守的仓库。在下方「GitHub」里连接后可从你的仓库中选择。</p>
+          <p class="desc">bonsai 关注的仓库。在下方「GitHub」里连接后可从你的仓库中选择。</p>
           <label class="field">仓库（owner/name）</label>
           <input type="text" id="cfgRepo" placeholder="EeroEternal/xgateway">
         </div>
 
         <div class="card">
           <h2>GitHub</h2>
-          <p class="desc">连接后可读代码、看 CI、开 issue，并选择要值守的仓库。</p>
+          <p class="desc">连接后可读代码、看 CI、开 issue，并选择要关注的仓库。</p>
           <div id="ghConnectedBox" class="hidden">
             <div class="gh-connected">
               <div class="avatar" id="ghAvatar">G</div>
@@ -284,12 +284,6 @@
           </div>
         </div>
 
-        <div class="card">
-          <h2>Agent</h2>
-          <p class="desc">附加指令会带给每一次运行；Agent 的 playbook 由它自己在运行中优化。</p>
-          <label class="field">附加指令</label>
-          <textarea id="cfgExtra" placeholder="例：优先关注 deploy 目录与 e2e 失败"></textarea>
-        </div>
 
         <div class="card">
           <h2>模型连接</h2>
@@ -665,7 +659,6 @@
   async function loadSettings() {
     var cfg = await api("/api/config");
     $("cfgRepo").value = cfg.repo || "";
-    $("cfgExtra").value = cfg.extra || "";
     $("cfgModel").value = cfg.model || "";
     $("cfgKeyEnv").value = cfg.apiKeyEnv || "";
     $("cfgApiKey").value = "";
@@ -676,7 +669,7 @@
     setDirty(false);
   }
 
-  ["cfgRepo", "cfgExtra", "cfgModel", "cfgApiKey", "dailyTask", "quickTask"].forEach(function (id) {
+  ["cfgRepo", "cfgModel", "cfgApiKey", "dailyTask", "quickTask"].forEach(function (id) {
     $(id).addEventListener("input", function () { setDirty(true); });
   });
   ["dailyEnabled", "quickEnabled", "cfgKeyEnv"].forEach(function (id) {
@@ -689,7 +682,6 @@
         method: "PUT",
         body: {
           repo: $("cfgRepo").value.trim(),
-          extra: $("cfgExtra").value,
           model: $("cfgModel").value.trim(),
           apiKeyEnv: $("cfgKeyEnv").value,
           apiKey: $("cfgApiKey").value.trim(),
