@@ -63,7 +63,18 @@
     color: #4b5563; font-weight: 500; border: 0; background: transparent; width: 100%; text-align: left; }
   .nav-item:hover { background: var(--bg); }
   .nav-item.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
-  .sidebar .spacer { flex: 1; }
+  .sidebar .spacer { flex: 1; min-height: 8px; }
+  .sessions-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 4px; }
+  .sessions-head b { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .session-list { overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
+  .session-item { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+  .session-item:hover { background: var(--bg); }
+  .session-item.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+  .session-item .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
+  .session-item .del { border: 0; background: transparent; color: var(--muted); border-radius: 6px; padding: 0 6px;
+    font-size: 15px; line-height: 1.4; visibility: hidden; }
+  .session-item:hover .del { visibility: visible; }
+  .session-item .del:hover { color: var(--danger); background: #fee2e2; }
   .user-box { border-top: 1px solid var(--border); padding-top: 12px; display: flex; align-items: center; gap: 10px; }
   .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--primary-soft); color: var(--primary);
     display: grid; place-items: center; font-weight: 700; flex: none; }
@@ -186,6 +197,8 @@
     <div class="brand"><div class="logo"></div> bonsai</div>
     <button class="nav-item" data-page="chat">对话</button>
     <button class="nav-item" data-page="settings">设置</button>
+    <div class="sessions-head"><b>会话</b><button class="btn btn-ghost btn-sm" id="newSessionBtn">新会话</button></div>
+    <div class="session-list" id="sessionList"></div>
     <div class="spacer"></div>
     <div class="user-box">
       <div class="avatar">A</div>
@@ -372,7 +385,10 @@
     document.querySelectorAll("[data-page]").forEach(function (b) {
       b.classList.toggle("active", b.getAttribute("data-page") === next);
     });
-    if (next === "chat") scrollMessages();
+    if (next === "chat") {
+      scrollMessages();
+      $("chatInput").focus();
+    }
   }
   document.querySelectorAll("[data-page]").forEach(function (b) {
     b.addEventListener("click", function () { navigate(b.getAttribute("data-page")); closeDrawer(); });
@@ -395,6 +411,77 @@
   }
   document.querySelectorAll(".menu-toggle").forEach(function (b) {
     b.addEventListener("click", toggleDrawer);
+  });
+
+  /* ---------------- sessions ---------------- */
+  var sessions = [];
+  var currentId = localStorage.getItem("bonsaiSession") || "main";
+
+  function chatUrl(suffix) {
+    return "/agents/keeper/" + encodeURIComponent(currentId) + (suffix || "");
+  }
+
+  function renderSessions() {
+    var box = $("sessionList");
+    box.innerHTML = "";
+    sessions.forEach(function (s) {
+      var item = document.createElement("div");
+      item.className = "session-item" + (s.id === currentId ? " active" : "");
+      var t = document.createElement("div");
+      t.className = "title";
+      t.textContent = s.title || s.id;
+      item.appendChild(t);
+      if (s.id !== "main") {
+        var del = document.createElement("button");
+        del.className = "del";
+        del.textContent = "×";
+        del.title = "删除会话";
+        del.addEventListener("click", async function (e) {
+          e.stopPropagation();
+          try {
+            await api("/api/sessions/" + encodeURIComponent(s.id), { method: "DELETE" });
+            toast("会话已删除");
+            if (currentId === s.id) switchSession("main");
+            else await loadSessions();
+          } catch (err) { toast(err.message); }
+        });
+        item.appendChild(del);
+      }
+      item.addEventListener("click", function () { switchSession(s.id); });
+      box.appendChild(item);
+    });
+  }
+
+  async function loadSessions() {
+    try {
+      var data = await api("/api/sessions");
+      sessions = data.sessions || [];
+      if (!sessions.some(function (s) { return s.id === currentId; })) {
+        currentId = sessions.length ? sessions[0].id : "main";
+      }
+      renderSessions();
+    } catch (e) { /* transient */ }
+  }
+
+  function switchSession(id) {
+    currentId = id;
+    localStorage.setItem("bonsaiSession", id);
+    renderSessions();
+    messages = [];
+    baselineAssistantTs = 0;
+    renderMessages();
+    loadMessages();
+    navigate("chat");
+    closeDrawer();
+  }
+
+  $("newSessionBtn").addEventListener("click", async function () {
+    try {
+      var s = await api("/api/sessions", { method: "POST" });
+      sessions.unshift(s);
+      switchSession(s.id);
+      toast("已新建会话");
+    } catch (e) { toast(e.message); }
   });
 
   /* ---------------- chat ---------------- */
@@ -480,7 +567,7 @@
 
   async function loadMessages() {
     try {
-      var data = await api("/agents/keeper/main?view=history");
+      var data = await api(chatUrl("?view=history"));
       messages = data.messages || [];
       waiting = lastAssistantTs() <= baselineAssistantTs;
       renderMessages();
@@ -497,12 +584,20 @@
     messages.push({ role: "user", timestamp: new Date().toISOString(), parts: [{ type: "text", text: text }] });
     renderMessages();
     try {
-      await api("/agents/keeper/main", { method: "POST", body: { kind: "user", body: text } });
+      await api(chatUrl(), { method: "POST", body: { kind: "user", body: text } });
     } catch (e) {
       waiting = false;
       toast("发送失败：" + e.message);
       renderMessages();
       return;
+    }
+    // 首条消息自动成为会话标题
+    var cur = sessions.filter(function (s) { return s.id === currentId; })[0];
+    if (cur && cur.title === "新会话") {
+      var title = text.replace(/\s+/g, " ").slice(0, 30);
+      cur.title = title;
+      renderSessions();
+      api("/api/sessions/" + encodeURIComponent(currentId), { method: "PATCH", body: { title: title } }).catch(function () {});
     }
     startPolling();
   }
@@ -659,6 +754,7 @@
 
   /* ---------------- boot ---------------- */
   async function boot() {
+    await loadSessions();
     navigate("chat");
     await Promise.all([loadMessages(), loadSettings(), loadStatus(), refreshGh()]);
     if (waiting) startPolling();

@@ -135,6 +135,43 @@ app.put('/api/config', async (c) => {
 	return c.json({ ...next, github: { login: next.github.login, connected: !!next.github.login } });
 });
 
+// ---- sessions ----------------------------------------------------------
+app.get('/api/sessions', async (c) => {
+	const cfg = await getConfig();
+	const sessions = [
+		{ id: CONVERSATION_ID, title: '值守会话', updatedAt: '' },
+		...cfg.sessions.filter((s) => s.id !== CONVERSATION_ID),
+	];
+	return c.json({ sessions });
+});
+
+app.post('/api/sessions', async (c) => {
+	const cfg = await getConfig();
+	const session = { id: `s${Date.now().toString(36)}`, title: '新会话', updatedAt: new Date().toISOString() };
+	await setConfig({ sessions: [session, ...cfg.sessions.filter((s) => s.id !== session.id)] });
+	return c.json(session, 201);
+});
+
+app.delete('/api/sessions/:id', async (c) => {
+	const id = c.req.param('id');
+	if (id === CONVERSATION_ID) return c.json({ error: '默认会话不可删除' }, 400);
+	const cfg = await getConfig();
+	await setConfig({ sessions: cfg.sessions.filter((s) => s.id !== id) });
+	return c.json({ ok: true });
+});
+
+app.patch('/api/sessions/:id', async (c) => {
+	const id = c.req.param('id');
+	const body = (await c.req.json()) as { title?: string };
+	const cfg = await getConfig();
+	const title = (body.title ?? '新会话').slice(0, 60);
+	const sessions = cfg.sessions.some((s) => s.id === id)
+		? cfg.sessions.map((s) => (s.id === id ? { ...s, title, updatedAt: new Date().toISOString() } : s))
+		: [{ id, title, updatedAt: new Date().toISOString() }, ...cfg.sessions];
+	await setConfig({ sessions });
+	return c.json({ ok: true });
+});
+
 // ---- runs --------------------------------------------------------------
 app.post('/api/run', async (c) => {
 	const { slot } = (await c.req.json()) as { slot?: 'daily' | 'quick' };

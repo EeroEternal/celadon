@@ -5,10 +5,17 @@
 // 长期会话 ID：所有定时触发和网页对话都投递到同一个会话。
 export const CONVERSATION_ID = 'main';
 
+export interface SessionInfo {
+	id: string;
+	title: string;
+	updatedAt: string;
+}
+
 export interface KeeperConfig {
 	repo: string;
 	extra: string;
 	github: { token: string; login: string };
+	sessions: SessionInfo[];
 	daily: { enabled: boolean; task: string };
 	quick: { enabled: boolean; task: string };
 }
@@ -17,6 +24,7 @@ export const DEFAULT_CONFIG: KeeperConfig = {
 	repo: process.env.TARGET_REPO ?? '',
 	extra: '',
 	github: { token: '', login: '' },
+	sessions: [{ id: CONVERSATION_ID, title: '值守会话', updatedAt: '' }],
 	daily: {
 		enabled: true,
 		task: '午夜深度扫描:完整走一遍工作循环(CI、风险代码模式、可疑文件),更新记忆与 playbook,输出本次报告。',
