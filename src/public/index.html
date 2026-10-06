@@ -71,8 +71,8 @@
   .session-item:hover { background: var(--bg); }
   .session-item.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
   .session-item .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
-  .session-item .del { border: 0; background: transparent; color: var(--muted); border-radius: 6px; padding: 0 6px;
-    font-size: 15px; line-height: 1.4; visibility: hidden; }
+  .session-item .del { border: 0; background: transparent; color: var(--muted); border-radius: 6px; padding: 4px 6px;
+    line-height: 0; visibility: hidden; display: flex; align-items: center; }
   .session-item:hover .del { visibility: visible; }
   .session-item .del:hover { color: var(--danger); background: #fee2e2; }
   .user-box { border-top: 1px solid var(--border); padding-top: 12px; display: flex; align-items: center; gap: 10px; }
@@ -265,24 +265,6 @@
           </div>
         </div>
 
-        <div class="card">
-          <h2>计划任务</h2>
-          <p class="desc">定时由 Cloudflare Cron 触发（UTC）：<code>0 0 * * *</code> 每日深度扫描、<code>0 */6 * * *</code> 每 6 小时巡检。</p>
-          <div class="switch-row">
-            <label class="switch"><input type="checkbox" id="dailyEnabled"><span class="track"></span></label>
-            <b>每日深度扫描</b><span class="badge">0 0 * * *（午夜 UTC）</span>
-          </div>
-          <textarea id="dailyTask"></textarea>
-          <div class="switch-row" style="margin-top:16px">
-            <label class="switch"><input type="checkbox" id="quickEnabled"><span class="track"></span></label>
-            <b>快速巡检</b><span class="badge">0 */6 * * *</span>
-          </div>
-          <textarea id="quickTask"></textarea>
-          <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
-            <button class="btn btn-ghost btn-sm" data-run="daily">运行深度扫描</button>
-            <button class="btn btn-ghost btn-sm" data-run="quick">运行快速巡检</button>
-          </div>
-        </div>
 
 
         <div class="card">
@@ -318,15 +300,6 @@
           <div class="hint" id="modelHint"></div>
         </div>
 
-        <div class="card">
-          <h2>告警（page）</h2>
-          <p class="desc">致命问题时呼叫人类。两种通道配其一，配置在 Cloudflare secrets。</p>
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <span class="badge" id="pagerPd">PagerDuty</span>
-            <span class="badge" id="pagerHook">Webhook</span>
-          </div>
-          <div class="hint">设置方法：<code>npx wrangler secret put PAGER_ROUTING_KEY</code>（PagerDuty Events v2）或 <code>PAGER_WEBHOOK_URL</code>。</div>
-        </div>
 
         <div class="card">
           <h2>会话</h2>
@@ -460,8 +433,11 @@
       {
         var del = document.createElement("button");
         del.className = "del";
-        del.textContent = "×";
         del.title = "删除会话";
+        del.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+          'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+          '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6l1 14h12l1-14"/>' +
+          '<path d="M10 10v6"/><path d="M14 10v6"/></svg>';
         del.addEventListener("click", async function (e) {
           e.stopPropagation();
           try {
@@ -705,25 +681,11 @@
     } catch (e) { $("modelHint").textContent = "测试失败：" + e.message; }
   });
 
-  document.querySelectorAll("[data-run]").forEach(function (b) {
-    b.addEventListener("click", async function () {
-      try {
-        await api("/api/run", { method: "POST", body: { slot: b.getAttribute("data-run"), session: currentId } });
-        toast("已触发，去「对话」看结果");
-        navigate("chat");
-        startPolling();
-      } catch (e) { toast("触发失败：" + e.message); }
-    });
-  });
 
   /* ---------------- status / github ---------------- */
   async function loadStatus() {
     var st = await api("/api/status");
     $("modelHint").textContent = "当前生效：" + st.model + (st.apiKeySet ? "（API Key 已配置）" : st.apiKeyEnv ? "（API Key 未配置）" : "（无需 API Key）");
-    $("pagerPd").textContent = st.pager.pagerduty ? "PagerDuty ✅" : "PagerDuty 未配置";
-    $("pagerPd").className = "badge " + (st.pager.pagerduty ? "ok" : "warn");
-    $("pagerHook").textContent = st.pager.webhook ? "Webhook ✅" : "Webhook 未配置";
-    $("pagerHook").className = "badge " + (st.pager.webhook ? "ok" : "warn");
   }
 
   async function refreshGh() {

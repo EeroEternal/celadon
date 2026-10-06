@@ -191,7 +191,7 @@ app.post('/api/run', async (c) => {
 		message: {
 			kind: 'signal',
 			type: 'schedule',
-			body: cfg.extra ? `${s.task}\n\n附加指令:\n${cfg.extra}` : s.task,
+			body: s.task,
 			attributes: { cron: slot === 'quick' ? 'manual-quick' : 'manual-daily', scheduledAt: new Date().toISOString() },
 		},
 	});

@@ -29,7 +29,7 @@ export default {
 			message: {
 				kind: 'signal',
 				type: 'schedule',
-				body: cfg.extra ? `${slot.task}\n\n附加指令:\n${cfg.extra}` : slot.task,
+				body: slot.task,
 				attributes: {
 					cron: controller.cron,
 					scheduledAt: new Date(controller.scheduledTime).toISOString(),

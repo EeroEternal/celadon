@@ -13,7 +13,6 @@ export interface SessionInfo {
 
 export interface KeeperConfig {
 	repo: string;
-	extra: string;
 	model: string;
 	apiKeyEnv: string;
 	apiKey: string;
@@ -25,7 +24,6 @@ export interface KeeperConfig {
 
 export const DEFAULT_CONFIG: KeeperConfig = {
 	repo: process.env.TARGET_REPO ?? '',
-	extra: '',
 	model: '',
 	apiKeyEnv: '',
 	apiKey: '',
