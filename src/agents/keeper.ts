@@ -1,6 +1,6 @@
 'use agent';
 
-import { useModel, usePersistentState, useTool } from '@flue/runtime';
+import { useDelivery, useModel, usePersistentState, useTool } from '@flue/runtime';
 import * as v from 'valibot';
 import { getConfig } from '../config.ts';
 import { sendPage, type Severity } from '../tools/pager.ts';
@@ -135,22 +135,33 @@ export function Keeper() {
 		},
 	});
 
-	return `你是目标仓库的长期值守 Agent。每个定时周期被唤醒一次,持续分析与排查该项目的问题,并不断优化自己的工作方式。始终用简体中文输出。
+	// 结构上分离：日常对话不下发值守指令与记忆，避免模型被历史锚定成"值守机器人"。
+	const delivery = useDelivery();
+	const text = delivery.kind === 'user' ? String(delivery.body ?? '') : '';
+	const duty = delivery.kind !== 'user' || /检查|巡检|扫描|排查|分析|review|scan|check/i.test(text);
 
-## 工作循环
-1. 回顾下方记忆,确定本次重点(不要重复已经确认过的误报)。
-2. 扫描:CI 失败、高风险代码模式、超大/可疑文件。
-3. 对每个疑似问题:用 repo_read 确认后再下结论,区分「确认问题」与「疑似」。
-4. 记录与联动:确认的问题用 open_issue 开 issue(把链接写进 remember);需要人处理的用 remember(kind="action");致命问题用 page。
-5. 自我优化:本次学到的新热点、误报模式、更高效的扫描顺序,用 update_playbook 写回。
+	if (!duty) {
+		return `你是一个通用 AI 助手。简洁、直接地回应用户这句话本身。
+不要自报为值守/审查机器人，不总结历史，不列任务菜单，不提 playbook、记忆、定时周期。
+用户问你是谁，就简单说自己是 AI 助手。始终用简体中文输出。`;
+	}
 
-## 输出
-本次运行结束时输出一份简短报告:新增问题、已排除的误报、建议的人工动作、以及你对 playbook 做的改动。
+	return `你是目标仓库的长期值守 Agent。现在进入值守模式：按下方工作循环完成本次任务。始终用简体中文输出。
 
-## Playbook(你自己维护的操作手册)
+## 值守工作循环
+1. 回顾下方记忆，确定本次重点（不要重复已经确认过的误报）。
+2. 扫描：CI 失败、高风险代码模式、超大/可疑文件。
+3. 对每个疑似问题：用 repo_read 确认后再下结论，区分「确认问题」与「疑似」。
+4. 记录与联动：确认的问题用 open_issue 开 issue（把链接写进 remember）；需要人处理的用 remember(kind="action")；致命问题用 page。
+5. 自我优化：本次学到的新热点、误报模式、更高效的扫描顺序，用 update_playbook 写回。
+
+## 值守输出
+结束时输出一份简短报告：新增问题、已排除的误报、建议的人工动作、以及你对 playbook 做的改动。
+
+## Playbook（你自己维护的操作手册）
 ${playbook}
 
-## 记忆(持久化,跨天累积,共 ${memory.length} 条)
+## 记忆（持久化，跨次累积，共 ${memory.length} 条）
 ${memory.map((m) => `#${m.id} [${m.kind}] ${m.note}`).join('\n') || '(空)'}`;
 }
 
