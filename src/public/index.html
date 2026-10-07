@@ -252,13 +252,6 @@
       </div>
       <div class="settings-body">
         <div class="card">
-          <h2>目标仓库</h2>
-          <p class="desc">celadon 关注的仓库。在下方「GitHub」里连接后可从你的仓库中选择。</p>
-          <label class="field">仓库（owner/name）</label>
-          <input type="text" id="cfgRepo" placeholder="EeroEternal/xgateway">
-        </div>
-
-        <div class="card">
           <h2>GitHub</h2>
           <p class="desc">连接后可读代码、看 CI、开 issue，并选择要关注的仓库。</p>
           <div id="ghConnectedBox" class="hidden">
@@ -282,39 +275,6 @@
         </div>
 
 
-
-        <div class="card">
-          <h2>模型连接</h2>
-          <p class="desc">所有模型调用都经由你的 Cloudflare AI Gateway。BYOK 模型（如 deepseek/*）无需在下方填 key；cloudflare/@cf/* 是 Workers AI。</p>
-          <label class="field">模型（provider/model-id）</label>
-          <input type="text" id="cfgModel" list="modelPresets" placeholder="cloudflare/deepseek/deepseek-chat">
-          <datalist id="modelPresets">
-            <option value="cloudflare/deepseek/deepseek-chat">BYOK DeepSeek（走 AI Gateway，推荐）</option>
-            <option value="cloudflare/@cf/moonshotai/kimi-k2.6">Workers AI kimi（免 key）</option>
-            <option value="cloudflare/@cf/meta/llama-3.1-8b-instruct">Workers AI llama（免 key）</option>
-            <option value="anthropic/claude-sonnet-4-6">需要 ANTHROPIC_API_KEY</option>
-            <option value="openai/gpt-5.5">需要 OPENAI_API_KEY</option>
-            <option value="google/gemini-3-pro">需要 GEMINI_API_KEY</option>
-          </datalist>
-          <div class="row">
-            <div>
-              <label class="field">API Key 环境变量</label>
-              <select id="cfgKeyEnv">
-                <option value="">不需要 / 用 Workers AI</option>
-                <option value="ANTHROPIC_API_KEY">ANTHROPIC_API_KEY</option>
-                <option value="OPENAI_API_KEY">OPENAI_API_KEY</option>
-                <option value="GEMINI_API_KEY">GEMINI_API_KEY</option>
-                <option value="DEEPSEEK_API_KEY">DEEPSEEK_API_KEY</option>
-              </select>
-            </div>
-            <div>
-              <label class="field">API Key（留空则用 wrangler secret）</label>
-              <input type="password" id="cfgApiKey" placeholder="sk-..." autocomplete="off">
-            </div>
-          </div>
-          <div style="margin-top:12px"><button class="btn btn-ghost btn-sm" id="testModelBtn">测试连接</button></div>
-          <div class="hint" id="modelHint"></div>
-        </div>
 
         <div class="card">
           <h2>访问密钥（外部应用）</h2>
@@ -671,20 +631,13 @@
 
   async function loadSettings() {
     var cfg = await api("/api/config");
-    $("cfgRepo").value = cfg.repo || "";
-    $("cfgModel").value = cfg.model || "";
-    $("cfgKeyEnv").value = cfg.apiKeyEnv || "";
-    $("cfgApiKey").value = "";
     $("cfgAccessKey").value = "";
     $("accessKeyState").textContent = cfg.accessKeySet ? "已设置（留空保存保持不变）" : "未设置（仅认 Worker secret）";
     setDirty(false);
   }
 
-  ["cfgRepo", "cfgModel", "cfgApiKey", "cfgAccessKey"].forEach(function (id) {
+  ["cfgAccessKey"].forEach(function (id) {
     $(id).addEventListener("input", function () { setDirty(true); });
-  });
-  ["cfgKeyEnv"].forEach(function (id) {
-    $(id).addEventListener("change", function () { setDirty(true); });
   });
 
   $("saveBtn").addEventListener("click", async function () {
@@ -692,10 +645,6 @@
       await api("/api/config", {
         method: "PUT",
         body: {
-          repo: $("cfgRepo").value.trim(),
-          model: $("cfgModel").value.trim(),
-          apiKeyEnv: $("cfgKeyEnv").value,
-          apiKey: $("cfgApiKey").value.trim(),
           accessKey: $("cfgAccessKey").value.trim(),
         },
       });
@@ -711,21 +660,8 @@
   });
   $("reloadBtn").addEventListener("click", loadSettings);
 
-  $("testModelBtn").addEventListener("click", async function () {
-    $("modelHint").textContent = "测试中…";
-    try {
-      var r = await api("/api/model-test", { method: "POST", body: { model: $("cfgModel").value.trim() } });
-      $("modelHint").textContent = r.ok ? "连接成功：" + r.model + " → " + r.text : "连接失败：" + r.error;
-    } catch (e) { $("modelHint").textContent = "测试失败：" + e.message; }
-  });
-
 
   /* ---------------- status / github ---------------- */
-  async function loadStatus() {
-    var st = await api("/api/status");
-    $("modelHint").textContent = "当前生效：" + st.model + (st.apiKeySet ? "（API Key 已配置）" : st.apiKeyEnv ? "（API Key 未配置）" : "（无需 API Key）");
-  }
-
   async function refreshGh() {
     try {
       var st = await api("/api/github/status");
@@ -735,22 +671,26 @@
         $("ghLogin").textContent = st.login || "已连接（Token）";
         $("ghAvatar").textContent = (st.login || "G").slice(0, 1).toUpperCase();
         var data = await api("/api/github/repos");
+        var cfg = await api("/api/config");
         var sel = $("ghRepoSelect");
         sel.innerHTML = "";
         (data.repos || []).forEach(function (r) {
           var o = document.createElement("option");
           o.value = r.name;
           o.textContent = r.name + (r.private ? " 🔒" : "");
-          if (r.name === $("cfgRepo").value.trim()) o.selected = true;
+          if (r.name === cfg.repo) o.selected = true;
           sel.appendChild(o);
         });
       }
     } catch (e) { /* status only */ }
   }
 
-  $("ghRepoSelect").addEventListener("change", function () {
-    $("cfgRepo").value = this.value;
-    setDirty(true);
+  $("ghRepoSelect").addEventListener("change", async function () {
+    // 目标仓库直接生效保存（设置页不再有单独的仓库输入框）
+    try {
+      await api("/api/config", { method: "PUT", body: { repo: this.value } });
+      toast("已切换目标仓库：" + this.value);
+    } catch (e) { toast(e.message); }
   });
 
   $("ghTokenSave").addEventListener("click", async function () {
@@ -794,7 +734,7 @@
   async function boot() {
     await loadSessions();
     navigate("chat");
-    await Promise.all([loadMessages(), loadSettings(), loadStatus(), refreshGh()]);
+    await Promise.all([loadMessages(), loadSettings(), refreshGh()]);
     if (waiting) startPolling();
   }
 
