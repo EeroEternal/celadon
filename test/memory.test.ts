@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseMemorySeed } from '../src/config.ts';
+import { accessKeyMatches, parseMemorySeed } from '../src/config.ts';
+
+test('accessKeyMatches accepts configured keys and rejects everything else', () => {
+	assert.equal(accessKeyMatches('Bearer secret1', ['secret1', undefined]), true);
+	assert.equal(accessKeyMatches('Bearer cfg-key', [undefined, 'cfg-key']), true);
+	assert.equal(accessKeyMatches('Bearer wrong', ['secret1', 'cfg-key']), false);
+	assert.equal(accessKeyMatches('secret1', ['secret1']), false); // 必须带 Bearer 前缀
+	assert.equal(accessKeyMatches(undefined, ['secret1']), false);
+	assert.equal(accessKeyMatches('Bearer x', ['', undefined]), false); // 空密钥永不匹配
+});
 
 test('parseMemorySeed falls back to empty on missing or junk input', () => {
 	assert.deepEqual(parseMemorySeed(undefined), { entries: [], nextId: 1 });

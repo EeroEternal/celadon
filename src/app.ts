@@ -7,7 +7,7 @@ import { createAgentRouter } from '@flue/runtime/routing';
 import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { Keeper } from './agents/keeper.ts';
-import { CONVERSATION_ID, getConfig, setConfig } from './config.ts';
+import { CONVERSATION_ID, accessKeyMatches, getConfig, setConfig } from './config.ts';
 import UI_HTML from './public/index.html?raw';
 import README_MD from '../README.md?raw';
 
@@ -77,13 +77,20 @@ setTimeout(function () { window.close(); }, 800);
 </script>`;
 
 // ---- auth guard --------------------------------------------------------
+// 访问密钥：Worker secret 优先，设置页配置的 accessKey 兑底（常量时间比较）。
+async function bearerOk(bearer?: string): Promise<boolean> {
+	if (!bearer) return false;
+	const cfg = await getConfig();
+	return accessKeyMatches(bearer, [process.env.KEEPER_API_KEY, cfg.accessKey]);
+}
+
 const PUBLIC_API = new Set(['/api/login', '/api/github/callback']);
 
 app.use('/api/*', async (c, next) => {
 	if (PUBLIC_API.has(c.req.path)) return next();
 	const bearer = c.req.header('authorization');
 	const cookie = getCookie(c, 'celadon_session');
-	const ok = (bearer && process.env.KEEPER_API_KEY && safeEqual(bearer, `Bearer ${process.env.KEEPER_API_KEY}`)) || validSession(cookie);
+	const ok = (await bearerOk(bearer)) || validSession(cookie);
 	if (!ok) return c.json({ error: 'unauthorized' }, 401);
 	await next();
 });
@@ -91,7 +98,7 @@ app.use('/api/*', async (c, next) => {
 app.use('/agents/*', async (c, next) => {
 	const bearer = c.req.header('authorization');
 	const cookie = getCookie(c, 'celadon_session');
-	const ok = (bearer && process.env.KEEPER_API_KEY && safeEqual(bearer, `Bearer ${process.env.KEEPER_API_KEY}`)) || validSession(cookie);
+	const ok = (await bearerOk(bearer)) || validSession(cookie);
 	if (!ok) return c.json({ error: 'unauthorized' }, 401);
 	await next();
 });
@@ -140,11 +147,14 @@ app.get('/api/status', async (c) => {
 
 app.get('/api/config', async (c) => {
 	const cfg = await getConfig();
-	return c.json({ ...cfg, github: { login: cfg.github.login, connected: !!cfg.github.login } });
+	const { accessKey, ...rest } = cfg; // 密钥值不回显，只给状态
+	return c.json({ ...rest, accessKeySet: !!accessKey, github: { login: cfg.github.login, connected: !!cfg.github.login } });
 });
 
 app.put('/api/config', async (c) => {
 	const patch = (await c.req.json()) as Record<string, unknown>;
+	// 访问密钥：留空 = 保持不变（要停用就换成新值）
+	if (!patch.accessKey) delete patch.accessKey;
 	const next = await setConfig(patch);
 	return c.json({ ...next, github: { login: next.github.login, connected: !!next.github.login } });
 });

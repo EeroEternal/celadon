@@ -121,7 +121,7 @@ curl localhost:5173/agents/keeper/main -X POST -H 'content-type: application/jso
 
 ## 开发者指南（Dev Guide）
 
-> 本文档同时挂在 `https://celadon.chat/llms.txt`（公开、无需鉴权）——外部 agent 拉这个地址即可学会如何调用 celadon。
+> 本文档同时挂在 `https://celadon.chat/llms.txt`（公开、无需鉴权）——外部 agent 拉这个地址即可学会如何调用 celadon。入口也在页面上：登录页和聊天空状态都有「API 指南」链接。
 
 ### 用户怎么用
 
@@ -135,7 +135,7 @@ curl localhost:5173/agents/keeper/main -X POST -H 'content-type: application/jso
 
 | token | 干什么用 | 不配会怎样 | 怎么配 |
 | --- | --- | --- | --- |
-| `KEEPER_API_KEY` | 调 HTTP API / 对话接口的访问密钥 | 只能靠网页登录态（Cookie）访问 | `npx wrangler secret put KEEPER_API_KEY` |
+| `KEEPER_API_KEY` | 调 HTTP API / 对话接口的访问密钥 | 只能靠网页登录态（Cookie）访问 | `npx wrangler secret put KEEPER_API_KEY`，**或在设置页「访问密钥」直接填**（两者任一即可，secret 优先） |
 | GitHub App（私钥+ID+安装ID）或 `GITHUB_TOKEN` | 读仓库、看 CI、开 issue | 仓库工具不可用（纯聊天不受影响） | 见「GitHub App」一节 |
 | 模型 API key | 用 Workers AI 之外的模型 | 默认 `cloudflare/...` 走 Workers AI，**免 key** | 设置页填模型 + API key |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | 网页里弹窗 OAuth 连 GitHub | 退回手动粘贴 PAT | `npx wrangler secret put` |

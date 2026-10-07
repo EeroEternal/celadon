@@ -35,6 +35,7 @@
   /* ---------- forms ---------- */
   label.field { display: block; margin: 14px 0 6px; font-size: 13px; font-weight: 600; color: #374151; }
   .hint { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
+  .hint a { color: var(--primary); text-decoration: underline; }
   input[type=text], input[type=password], textarea, select {
     width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
     background: #fff; color: var(--text); font: inherit; outline: none; transition: border-color .15s, box-shadow .15s;
@@ -186,6 +187,7 @@
     <div class="brand"><div class="logo"></div> celadon</div>
     <h1>登录</h1>
     <p class="sub">AI 助手</p>
+    <p class="hint">外部应用 / 开发者：<a href="/llms.txt" target="_blank" rel="noopener">API 指南（llms.txt）</a></p>
     <form id="loginForm">
       <label class="field">用户名</label>
       <input type="text" id="loginUser" autocomplete="username" value="admin">
@@ -313,6 +315,12 @@
           </div>
           <div style="margin-top:12px"><button class="btn btn-ghost btn-sm" id="testModelBtn">测试连接</button></div>
           <div class="hint" id="modelHint"></div>
+        </div>
+
+        <div class="card">
+          <h2>访问密钥（外部应用）</h2>
+          <p class="desc">外部应用调用 API 用的 Bearer 密钥：<code>Authorization: Bearer …</code>。当前：<span id="accessKeyState">—</span>。留空保存表示不修改。</p>
+          <input type="password" id="cfgAccessKey" placeholder="留空保持不变" autocomplete="new-password">
         </div>
 
       </div>
@@ -579,7 +587,8 @@
     }
     if (!shown && !waiting) {
       html = '<div style="text-align:center;color:var(--muted);padding:48px 16px">' +
-        '<p>有什么可以帮忙的？</p></div>';
+        '<p>有什么可以帮忙的？</p>' +
+        '<p class="hint">外部应用 / 开发者：<a href="/llms.txt" target="_blank" rel="noopener">API 指南（llms.txt）</a></p></div>';
     }
     box.innerHTML = html;
     scrollMessages();
@@ -667,10 +676,12 @@
     $("cfgModel").value = cfg.model || "";
     $("cfgKeyEnv").value = cfg.apiKeyEnv || "";
     $("cfgApiKey").value = "";
+    $("cfgAccessKey").value = "";
+    $("accessKeyState").textContent = cfg.accessKeySet ? "已设置（留空保存保持不变）" : "未设置（仅认 Worker secret）";
     setDirty(false);
   }
 
-  ["cfgRepo", "cfgModel", "cfgApiKey"].forEach(function (id) {
+  ["cfgRepo", "cfgModel", "cfgApiKey", "cfgAccessKey"].forEach(function (id) {
     $(id).addEventListener("input", function () { setDirty(true); });
   });
   ["cfgKeyEnv"].forEach(function (id) {
@@ -686,8 +697,13 @@
           model: $("cfgModel").value.trim(),
           apiKeyEnv: $("cfgKeyEnv").value,
           apiKey: $("cfgApiKey").value.trim(),
+          accessKey: $("cfgAccessKey").value.trim(),
         },
       });
+      if ($("cfgAccessKey").value.trim()) {
+        $("accessKeyState").textContent = "已设置（留空保存保持不变）";
+        $("cfgAccessKey").value = "";
+      }
       setDirty(false);
       toast("设置已保存");
     } catch (e) {

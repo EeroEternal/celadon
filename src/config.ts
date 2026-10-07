@@ -2,7 +2,20 @@
 // Stored in the app-owned ConfigStore Durable Object (see cloudflare.ts),
 // readable from the Worker (scheduled handler, admin API) and from agent tools.
 
+import { timingSafeEqual } from 'node:crypto';
 import * as v from 'valibot';
+
+// Bearer 访问密钥校验：常量时间比较，支持多个候选（secret 优先，设置页配置的兜底）。
+function eq(a: string, b: string): boolean {
+	const ab = Buffer.from(a);
+	const bb = Buffer.from(b);
+	return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
+
+export function accessKeyMatches(bearer: string | undefined, keys: (string | undefined)[]): boolean {
+	if (!bearer) return false;
+	return keys.some((k) => !!k && eq(bearer, `Bearer ${k}`));
+}
 
 // 记忆条目：Agent 用 remember 工具写入，跨会话可选继承。
 export interface MemoryEntry {
@@ -41,6 +54,8 @@ export interface KeeperConfig {
 	model: string;
 	apiKeyEnv: string;
 	apiKey: string;
+	/** 外部应用调用的 Bearer 密钥（设置页可改；留空则只认 Worker secret） */
+	accessKey: string;
 	github: { token: string; login: string };
 	sessions: SessionInfo[];
 	/** 记忆库：会话 id -> 记忆条目。remember 工具写回，新会话从这里选一份继承。 */
@@ -54,6 +69,7 @@ export const DEFAULT_CONFIG: KeeperConfig = {
 	model: '',
 	apiKeyEnv: '',
 	apiKey: '',
+	accessKey: '',
 	github: { token: '', login: '' },
 	sessions: [],
 	memories: {},
@@ -92,6 +108,7 @@ export async function getConfig(): Promise<KeeperConfig> {
 		model: stored.model ?? DEFAULT_CONFIG.model,
 		apiKeyEnv: stored.apiKeyEnv ?? DEFAULT_CONFIG.apiKeyEnv,
 		apiKey: stored.apiKey ?? DEFAULT_CONFIG.apiKey,
+		accessKey: stored.accessKey ?? '',
 		daily: { ...DEFAULT_CONFIG.daily, ...stored.daily },
 		quick: { ...DEFAULT_CONFIG.quick, ...stored.quick },
 	};
