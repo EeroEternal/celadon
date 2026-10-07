@@ -1,27 +1,16 @@
 'use agent';
 
-import { useDelivery, useModel, usePersistentState, useTool } from '@flue/runtime';
+import { useDelivery, useInitialData, useModel, usePersistentState, useTool } from '@flue/runtime';
 import * as v from 'valibot';
-import { getConfig } from '../config.ts';
+import { appendMemory, getConfig, MemorySchema, parseMemorySeed, type MemoryEntry } from '../config.ts';
 import { sendPage, type Severity } from '../tools/pager.ts';
 import { repoCi, repoList, repoOpenIssue, repoRead, repoSearch } from '../tools/repo.ts';
-
-interface MemoryEntry {
-	id: number;
-	kind: 'fact' | 'finding' | 'action';
-	note: string;
-	at: string;
-}
 
 const DEFAULT_PLAYBOOK = `1. 先看 CI(repo_ci),失败的 run 是最可信的问题信号。
 2. 用 repo_search 扫描高风险模式:unwrap()/expect(、TODO、FIXME、panic!、裸的 clone 滥用、超大函数。
 3. 用 repo_read 打开可疑文件,确认问题真实存在,排除误报。
 4. 每个确认的问题:先 open_issue 开 issue 跟踪(把 issue 链接写进 remember),再决定是否需要 page。
 5. 结束前用 update_playbook 写回本次学到的东西(新的问题热点、误报模式、更省 token 的扫描顺序)。`;
-
-const MemorySchema = v.array(
-	v.object({ id: v.number(), kind: v.picklist(['fact', 'finding', 'action']), note: v.string(), at: v.string() }),
-);
 
 // 模型连接可配置：设置页保存到 ConfigStore，这里每次渲染刷新一次，
 // 下一次模型调用即用新配置（API key 也同步进 process.env 供 provider 解析）。
@@ -40,7 +29,14 @@ async function refreshModelConfig(): Promise<void> {
 	}
 }
 
-export function Keeper() {
+export function Keeper(props: { id: string }) {
+	// 自身实例 id：remember 把记忆镜像回记忆库时用。裸渲染（无实例）拿不到，兑底空串。
+	let selfId = '';
+	try {
+		selfId = props.id;
+	} catch {
+		/* bare render */
+	}
 	if (!live.loaded) {
 		live.loaded = true;
 		void refreshModelConfig();
@@ -49,9 +45,12 @@ export function Keeper() {
 	}
 	useModel(live.model);
 
-	const [memory, setMemory] = usePersistentState<MemoryEntry[]>('memory', []);
+	// 新会话：创建者把用户选中的记忆快照放进 initialData（实例创建时一次性记录，
+	// 运行时同步可读），作为 usePersistentState 的初始值；老会话无快照，走原持久化记忆。
+	const seed = parseMemorySeed(useInitialData<{ memory?: unknown } | undefined>()?.memory);
+	const [memory, setMemory] = usePersistentState<MemoryEntry[]>('memory', seed.entries);
 	const [playbook, setPlaybook] = usePersistentState('playbook', DEFAULT_PLAYBOOK);
-	const [nextId, setNextId] = usePersistentState('nextMemoryId', 1);
+	const [nextId, setNextId] = usePersistentState('nextMemoryId', seed.nextId);
 
 	useTool({
 		name: 'remember',
@@ -62,6 +61,7 @@ export function Keeper() {
 			const entry: MemoryEntry = { id: nextId, kind: data.kind, note: data.note, at: new Date().toISOString() };
 			setNextId(nextId + 1);
 			setMemory(v.parse(MemorySchema, [...memory, entry].slice(-200)));
+			if (selfId) await appendMemory(selfId, entry).catch(() => {});
 			return `Remembered #${entry.id}: [${data.kind}] ${data.note}`;
 		},
 	});

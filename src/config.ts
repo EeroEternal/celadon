@@ -2,6 +2,27 @@
 // Stored in the app-owned ConfigStore Durable Object (see cloudflare.ts),
 // readable from the Worker (scheduled handler, admin API) and from agent tools.
 
+import * as v from 'valibot';
+
+// 记忆条目：Agent 用 remember 工具写入，跨会话可选继承。
+export interface MemoryEntry {
+	id: number;
+	kind: 'fact' | 'finding' | 'action';
+	note: string;
+	at: string;
+}
+
+export const MemorySchema = v.array(
+	v.object({ id: v.number(), kind: v.picklist(['fact', 'finding', 'action']), note: v.string(), at: v.string() }),
+);
+
+// 新会话的记忆快照（随 initialData 带进新实例）。脏数据兑底为空，不能让渲染挂掉。
+export function parseMemorySeed(raw: unknown): { entries: MemoryEntry[]; nextId: number } {
+	const parsed = v.safeParse(MemorySchema, raw ?? []);
+	const entries = parsed.success ? parsed.output.slice(-200) : [];
+	return { entries, nextId: entries.reduce((m, e) => Math.max(m, e.id), 0) + 1 };
+}
+
 // 长期会话 ID：所有定时触发和网页对话都投递到同一个会话。
 export const CONVERSATION_ID = 'main';
 
@@ -9,6 +30,10 @@ export interface SessionInfo {
 	id: string;
 	title: string;
 	updatedAt: string;
+	/** 新建时选中的记忆来源会话 id（'' = 空白记忆） */
+	memoryFrom?: string;
+	/** 创建时从记忆库拷贝的快照，经 initialData 带进新实例 */
+	seed?: MemoryEntry[];
 }
 
 export interface KeeperConfig {
@@ -18,6 +43,8 @@ export interface KeeperConfig {
 	apiKey: string;
 	github: { token: string; login: string };
 	sessions: SessionInfo[];
+	/** 记忆库：会话 id -> 记忆条目。remember 工具写回，新会话从这里选一份继承。 */
+	memories: Record<string, MemoryEntry[]>;
 	daily: { enabled: boolean; task: string };
 	quick: { enabled: boolean; task: string };
 }
@@ -29,6 +56,7 @@ export const DEFAULT_CONFIG: KeeperConfig = {
 	apiKey: '',
 	github: { token: '', login: '' },
 	sessions: [],
+	memories: {},
 	daily: {
 		enabled: true,
 		task: '午夜深度扫描:完整走一遍工作循环(CI、风险代码模式、可疑文件),更新记忆与 playbook,输出本次报告。',
@@ -80,4 +108,15 @@ export async function setConfig(patch: Partial<KeeperConfig>): Promise<KeeperCon
 	};
 	await (await configDo())?.set(next);
 	return next;
+}
+
+// 记忆库镜像：remember 工具把新记忆写回这里，供以后新建的会话选择继承。
+// ponytail: read-modify-write，两个会话并发 remember 会互相覆盖；量小无所谓，
+// 真出冲突就把合并挪进 ConfigStore DO 的一个方法里串行化。
+export async function appendMemory(id: string, entry: MemoryEntry): Promise<void> {
+	const cfg = await getConfig();
+	const list = cfg.memories[id] ?? [];
+	await setConfig({
+		memories: { ...cfg.memories, [id]: [...list.filter((e) => e.id !== entry.id), entry].slice(-200) },
+	});
 }

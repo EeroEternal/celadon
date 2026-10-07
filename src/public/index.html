@@ -66,6 +66,8 @@
   .sidebar .spacer { flex: 1; min-height: 8px; }
   .sessions-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 4px; }
   .sessions-head b { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .inherit-row { padding: 0 10px 8px; }
+  .inherit-row select { padding: 6px 8px; font-size: 12px; border-radius: 8px; }
   .session-list { overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
   .session-item { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
   .session-item:hover { background: var(--bg); }
@@ -78,7 +80,11 @@
   .user-box { border-top: 1px solid var(--border); padding-top: 12px; display: flex; align-items: center; gap: 10px; }
   .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--primary-soft); color: var(--primary);
     display: grid; place-items: center; font-weight: 700; flex: none; }
+  .user-box .who { flex: 1; min-width: 0; }
   .user-box .who b { display: block; font-size: 13.5px; }
+  .user-box .out { border: 0; background: transparent; color: var(--muted); border-radius: 8px; padding: 6px;
+    line-height: 0; display: flex; align-items: center; flex: none; }
+  .user-box .out:hover { color: var(--danger); background: #fee2e2; }
   .user-box .who span { color: var(--muted); font-size: 12px; }
 
   main { min-width: 0; display: flex; flex-direction: column; height: 100%; min-height: 0; }
@@ -197,12 +203,21 @@
     <div class="brand"><div class="logo"></div> celadon</div>
     <button class="nav-item" data-page="chat">对话</button>
     <button class="nav-item" data-page="settings">设置</button>
+    <a class="nav-item" href="/llms.txt" target="_blank" rel="noopener">API 指南（给 agent）</a>
     <div class="sessions-head"><b>会话</b><button class="btn btn-ghost btn-sm" id="newSessionBtn">新会话</button></div>
+    <div class="inherit-row">
+      <select id="inheritSelect" title="新会话继承的记忆（来自记忆库，由你选择）"></select>
+    </div>
     <div class="session-list" id="sessionList"></div>
     <div class="spacer"></div>
     <div class="user-box">
       <div class="avatar">A</div>
       <div class="who"><b>admin</b><span>已登录</span></div>
+      <button class="out" id="logoutBtn" title="退出登录" aria-label="退出登录">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>
+        </svg>
+      </button>
     </div>
   </aside>
 
@@ -300,12 +315,6 @@
           <div class="hint" id="modelHint"></div>
         </div>
 
-
-        <div class="card">
-          <h2>会话</h2>
-          <p class="desc">当前登录：admin</p>
-          <button class="btn btn-danger" id="logoutBtn">退出登录</button>
-        </div>
       </div>
       <div class="save-bar">
         <button class="btn btn-ghost" id="reloadBtn">放弃修改</button>
@@ -462,6 +471,20 @@
       if (!sessions.some(function (s) { return s.id === currentId; })) currentId = sessions[0].id;
       localStorage.setItem("celadonSession", currentId);
       renderSessions();
+      // 记忆库下拉：用户在新建会话时选择继承哪份记忆
+      var cfg = await api("/api/config");
+      var sel = $("inheritSelect");
+      sel.innerHTML = '<option value="">新会话 · 空白记忆</option>';
+      Object.keys(cfg.memories || {}).forEach(function (id) {
+        if (!(cfg.memories[id] || []).length) return;
+        var src = sessions.filter(function (x) { return x.id === id; })[0];
+        var o = document.createElement("option");
+        o.value = id;
+        o.textContent = "新会话 · 继承「" + ((src && src.title) || id) + "」记忆";
+        sel.appendChild(o);
+      });
+      // 记忆库为空时隐藏选择器，避免一个没选项的空框让人困惑
+      document.querySelector(".inherit-row").style.display = sel.options.length > 1 ? "" : "none";
     } catch (e) { /* transient */ }
   }
 
@@ -479,7 +502,7 @@
 
   $("newSessionBtn").addEventListener("click", async function () {
     try {
-      var s = await api("/api/sessions", { method: "POST" });
+      var s = await api("/api/sessions", { method: "POST", body: { inheritFrom: $("inheritSelect").value } });
       sessions.unshift(s);
       switchSession(s.id);
       toast("已新建会话");
@@ -586,7 +609,13 @@
     messages.push({ role: "user", timestamp: new Date().toISOString(), parts: [{ type: "text", text: text }] });
     renderMessages();
     try {
-      await api(chatUrl(), { method: "POST", body: { kind: "user", body: text } });
+      var payload = { kind: "user", body: text };
+      var srec = sessions.filter(function (s) { return s.id === currentId; })[0];
+      if (srec && srec.seed && srec.seed.length && !srec.seeded) {
+        srec.seeded = true; // initialData 只在实例创建时生效，重复发送无害
+        payload.initialData = { memory: srec.seed };
+      }
+      await api(chatUrl(), { method: "POST", body: payload });
     } catch (e) {
       waiting = false;
       toast("发送失败：" + e.message);

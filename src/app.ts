@@ -9,13 +9,14 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { Keeper } from './agents/keeper.ts';
 import { CONVERSATION_ID, getConfig, setConfig } from './config.ts';
 import UI_HTML from './public/index.html?raw';
+import README_MD from '../README.md?raw';
 
 // 路由所有 cloudflare/* 模型调用经由具名 AI Gateway（id 与 Cloudflare 控制台里的网关名一致，
 // 上游可以是 DeepSeek 等任意 provider，计费走 Cloudflare，无需厂商 key）。
 setProvider(
 	cloudflareBindingProvider({
 		binding: env.AI,
-		gateway: { id: process.env.AI_GATEWAY_ID || 'bonsai' },
+		gateway: { id: process.env.AI_GATEWAY_ID || 'celadon' },
 	}),
 );
 
@@ -155,8 +156,17 @@ app.get('/api/sessions', async (c) => {
 });
 
 app.post('/api/sessions', async (c) => {
+	const body = (await c.req.json().catch(() => ({}))) as { inheritFrom?: string };
 	const cfg = await getConfig();
-	const session = { id: `s${Date.now().toString(36)}`, title: '新会话', updatedAt: new Date().toISOString() };
+	// 用户选中的记忆继承：从记忆库拷一份快照，新实例经 initialData 带入。
+	const from = (body.inheritFrom ?? '').trim();
+	const session = {
+		id: `s${Date.now().toString(36)}`,
+		title: '新会话',
+		updatedAt: new Date().toISOString(),
+		memoryFrom: from,
+		seed: from ? (cfg.memories[from] ?? []) : [],
+	};
 	await setConfig({ sessions: [session, ...cfg.sessions.filter((s) => s.id !== session.id)] });
 	return c.json(session, 201);
 });
@@ -209,7 +219,7 @@ app.post('/api/model-test', async (c) => {
 		const res = await (env.AI as any).run(
 			modelId,
 			{ messages: [{ role: 'user', content: 'reply with exactly: ok' }], max_tokens: 16 },
-			{ gateway: { id: process.env.AI_GATEWAY_ID || 'bonsai' } },
+			{ gateway: { id: process.env.AI_GATEWAY_ID || 'celadon' } },
 		);
 		const text = JSON.stringify(res).slice(0, 300);
 		return c.json({ ok: true, model: modelId, text });
@@ -312,6 +322,9 @@ app.route('/agents/keeper', createAgentRouter(Keeper));
 const UI_VERSION = createHash('sha256').update(UI_HTML).digest('hex').slice(0, 8);
 
 app.get('/health', (c) => c.json({ ok: true }));
+
+// llms.txt：给外部 agent 看的集成指南（公开、无需鉴权），内容即 README 全文。
+app.get('/llms.txt', (c) => c.text(README_MD));
 
 app.get('/', (c) => c.redirect(`/ui?v=${UI_VERSION}`, 302));
 
