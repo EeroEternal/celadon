@@ -288,6 +288,14 @@
             <button class="btn btn-ghost btn-sm" id="accessKeyEditBtn">修改</button>
           </div>
         </div>
+
+        <div class="card">
+          <h2>登录口令</h2>
+          <div class="setting-row">
+            <div class="who"><b id="passState">-</b><span>管理页登录口令（用户 admin）</span></div>
+            <button class="btn btn-ghost btn-sm" id="passEditBtn">修改</button>
+          </div>
+        </div>
       </div>
     </section>
   </main>
@@ -654,6 +662,7 @@
       currentAccessKey = cfg.accessKey || "";
       $("accessKeyState").textContent = currentAccessKey || "未设置（仅认 Worker secret）";
       $("copyKeyBtn").style.display = currentAccessKey ? "" : "none";
+      $("passState").textContent = cfg.adminPassSet ? "已修改" : "默认口令（建议尽快修改）";
     } catch (e) { /* transient */ }
   }
 
@@ -698,6 +707,21 @@
       await navigator.clipboard.writeText(currentAccessKey);
       toast("访问密钥已复制");
     } catch (e) { toast("复制失败，请手动选中复制"); }
+  });
+
+  $("passEditBtn").addEventListener("click", function () {
+    openModal("修改登录口令",
+      '<label class="field">新口令</label><input type="password" id="passInput" autocomplete="new-password">' +
+      '<label class="field">确认新口令</label><input type="password" id="passInput2" autocomplete="new-password">' +
+      '<div class="hint">至少 6 位。修改后下次登录生效，已登录会话不受影响。</div>',
+      async function () {
+        var p = $("passInput").value, p2 = $("passInput2").value;
+        if (p.length < 6) { toast("口令至少 6 位"); return false; }
+        if (p !== p2) { toast("两次输入不一致"); return false; }
+        await api("/api/config", { method: "PUT", body: { adminPass: p } });
+        await loadSettings();
+        toast("登录口令已修改");
+      });
   });
 
   $("accessKeyEditBtn").addEventListener("click", function () {

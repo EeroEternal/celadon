@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { accessKeyMatches, parseMemorySeed } from '../src/config.ts';
+import { accessKeyMatches, hashPass, parseMemorySeed, verifyPass } from '../src/config.ts';
+
+test('hashPass/verifyPass round-trips and rejects wrong passwords', () => {
+	const stored = hashPass('s3cret-pass');
+	assert.notEqual(stored, 's3cret-pass'); // 不存明文
+	assert.equal(verifyPass('s3cret-pass', stored), true);
+	assert.equal(verifyPass('wrong-pass', stored), false);
+	assert.equal(verifyPass('s3cret-pass', 'garbage'), false);
+});
 
 test('accessKeyMatches accepts configured keys and rejects everything else', () => {
 	assert.equal(accessKeyMatches('Bearer secret1', ['secret1', undefined]), true);

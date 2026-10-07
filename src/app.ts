@@ -7,7 +7,7 @@ import { createAgentRouter } from '@flue/runtime/routing';
 import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { Keeper } from './agents/keeper.ts';
-import { CONVERSATION_ID, accessKeyMatches, getConfig, setConfig } from './config.ts';
+import { CONVERSATION_ID, accessKeyMatches, getConfig, hashPass, setConfig, verifyPass } from './config.ts';
 import UI_HTML from './public/index.html?raw';
 import README_MD from '../README.md?raw';
 
@@ -24,6 +24,7 @@ const app = new Hono();
 
 // ---- demo credentials -------------------------------------------------
 const ADMIN_USER = 'admin';
+// 开发默认口令；部署后请在设置页改掉，或 ADMIN_PASS secret 覆盖。
 const ADMIN_PASS = 'admin123';
 
 function sessionSecret(): string {
@@ -106,7 +107,13 @@ app.use('/agents/*', async (c, next) => {
 // ---- session -----------------------------------------------------------
 app.post('/api/login', async (c) => {
 	const { username, password } = (await c.req.json()) as { username?: string; password?: string };
-	if (username !== ADMIN_USER || password !== ADMIN_PASS) {
+	// 口令优先级：设置页改过的（ConfigStore 哈希）> ADMIN_PASS secret > 开发默认
+	const cfg = await getConfig();
+	const pass = password ?? '';
+	const passOk = cfg.adminPass
+		? verifyPass(pass, cfg.adminPass)
+		: safeEqual(pass, process.env.ADMIN_PASS || ADMIN_PASS);
+	if (username !== ADMIN_USER || !passOk) {
 		return c.json({ error: '用户名或密码错误' }, 401);
 	}
 	setCookie(c, 'celadon_session', issueSession(), {
@@ -147,14 +154,21 @@ app.get('/api/status', async (c) => {
 
 app.get('/api/config', async (c) => {
 	const cfg = await getConfig();
-	// 访问密钥回传给设置页，方便再次复制分发（此接口在鉴权之后）
-	return c.json({ ...cfg, github: { login: cfg.github.login, connected: !!cfg.github.login } });
+	// 访问密钥回传给设置页，方便再次复制分发（此接口在鉴权之后）；口令哈希不回传
+	const { adminPass, ...rest } = cfg;
+	return c.json({ ...rest, adminPassSet: !!adminPass, github: { login: cfg.github.login, connected: !!cfg.github.login } });
 });
 
 app.put('/api/config', async (c) => {
 	const patch = (await c.req.json()) as Record<string, unknown>;
 	// 访问密钥：留空 = 保持不变（要停用就换成新值）
 	if (!patch.accessKey) delete patch.accessKey;
+	// 登录口令：只存 scrypt 哈希；留空 = 不改
+	if (typeof patch.adminPass === 'string' && patch.adminPass) {
+		patch.adminPass = hashPass(patch.adminPass);
+	} else {
+		delete patch.adminPass;
+	}
 	const next = await setConfig(patch);
 	return c.json({ ...next, github: { login: next.github.login, connected: !!next.github.login } });
 });

@@ -2,7 +2,7 @@
 // Stored in the app-owned ConfigStore Durable Object (see cloudflare.ts),
 // readable from the Worker (scheduled handler, admin API) and from agent tools.
 
-import { timingSafeEqual } from 'node:crypto';
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import * as v from 'valibot';
 
 // Bearer 访问密钥校验：常量时间比较，支持多个候选（secret 优先，设置页配置的兜底）。
@@ -15,6 +15,20 @@ function eq(a: string, b: string): boolean {
 export function accessKeyMatches(bearer: string | undefined, keys: (string | undefined)[]): boolean {
 	if (!bearer) return false;
 	return keys.some((k) => !!k && eq(bearer, `Bearer ${k}`));
+}
+
+// 登录口令：存 scrypt 哈希（salt:hex），不存明文。
+export function hashPass(pass: string): string {
+	const salt = randomBytes(8).toString('hex');
+	return `${salt}:${scryptSync(pass, salt, 32).toString('hex')}`;
+}
+
+export function verifyPass(pass: string, stored: string): boolean {
+	const [salt, hash] = stored.split(':');
+	if (!salt || !hash) return false;
+	const calc = scryptSync(pass, salt, 32);
+	const want = Buffer.from(hash, 'hex');
+	return calc.length === want.length && timingSafeEqual(calc, want);
 }
 
 // 记忆条目：Agent 用 remember 工具写入，跨会话可选继承。
@@ -56,6 +70,8 @@ export interface KeeperConfig {
 	apiKey: string;
 	/** 外部应用调用的 Bearer 密钥（设置页可改；留空则只认 Worker secret） */
 	accessKey: string;
+	/** 管理页登录口令的 scrypt 哈希（设置页可改；未设置则用 ADMIN_PASS secret 或开发默认） */
+	adminPass: string;
 	github: { token: string; login: string };
 	sessions: SessionInfo[];
 	/** 记忆库：会话 id -> 记忆条目。remember 工具写回，新会话从这里选一份继承。 */
@@ -70,6 +86,7 @@ export const DEFAULT_CONFIG: KeeperConfig = {
 	apiKeyEnv: '',
 	apiKey: '',
 	accessKey: '',
+	adminPass: '',
 	github: { token: '', login: '' },
 	sessions: [],
 	memories: {},
@@ -109,6 +126,7 @@ export async function getConfig(): Promise<KeeperConfig> {
 		apiKeyEnv: stored.apiKeyEnv ?? DEFAULT_CONFIG.apiKeyEnv,
 		apiKey: stored.apiKey ?? DEFAULT_CONFIG.apiKey,
 		accessKey: stored.accessKey ?? '',
+		adminPass: stored.adminPass ?? '',
 		daily: { ...DEFAULT_CONFIG.daily, ...stored.daily },
 		quick: { ...DEFAULT_CONFIG.quick, ...stored.quick },
 	};
