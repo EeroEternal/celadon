@@ -139,10 +139,17 @@
     background: #fff; border-radius: 50%; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
   .switch input:checked + .track { background: var(--primary); }
   .switch input:checked + .track::after { transform: translateX(18px); }
-  .save-bar { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 10px;
-    background: rgba(255,255,255,.92); backdrop-filter: blur(6px); border-top: 1px solid var(--border);
-    padding: 12px 24px; margin-top: 8px; }
-  .gh-connected { display: flex; align-items: center; gap: 10px; padding: 12px; background: var(--bg); border-radius: 10px; }
+  .setting-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
+  .card h2 + .setting-row { border-top: 0; padding-top: 4px; }
+  .setting-row .who { flex: 1; min-width: 0; }
+  .setting-row .who b { display: block; font-size: 13.5px; }
+  .setting-row .who span { color: var(--muted); font-size: 12px; }
+  .modal { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 60; display: flex;
+    align-items: center; justify-content: center; padding: 16px; }
+  .modal-card { background: var(--panel); border-radius: 14px; box-shadow: var(--shadow);
+    width: 100%; max-width: 420px; padding: 20px; }
+  .modal-card h3 { margin: 0 0 10px; font-size: 15px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 
   /* ---------- toast ---------- */
   #toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 99; display: flex;
@@ -171,7 +178,6 @@
     .page-header { padding: 10px 14px; }
     .settings-body { padding: 16px; }
     .row { flex-direction: column; }
-    .save-bar { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
   }
   @media (max-width: 480px) {
     .auth-card { padding: 24px; }
@@ -180,6 +186,17 @@
 </head>
 <body>
 <div id="toast"></div>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-card">
+    <h3 id="modalTitle"></h3>
+    <div id="modalBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="modalCancel">取消</button>
+      <button class="btn btn-primary" id="modalSave">保存</button>
+    </div>
+  </div>
+</div>
 
 <!-- ================= login ================= -->
 <div id="loginView" class="auth-wrap hidden">
@@ -247,45 +264,28 @@
       <div class="page-header">
         <button class="btn btn-ghost icon-btn hamburger menu-toggle" title="菜单"><span class="bars"></span></button>
         <h1>设置</h1>
-        <div class="grow"></div>
-        <span class="badge" id="saveBadge">未修改</span>
       </div>
       <div class="settings-body">
         <div class="card">
           <h2>GitHub</h2>
-          <p class="desc">连接后可读代码、看 CI、开 issue，并选择要关注的仓库。</p>
-          <div id="ghConnectedBox" class="hidden">
-            <div class="gh-connected">
-              <div class="avatar" id="ghAvatar">G</div>
-              <div style="flex:1"><b id="ghLogin">-</b><div class="hint">已连接 GitHub</div></div>
-              <button class="btn btn-ghost btn-sm" id="ghDisconnect">断开</button>
-            </div>
-            <label class="field">选择仓库</label>
-            <select id="ghRepoSelect"></select>
+          <div class="setting-row">
+            <div class="who"><b id="ghLogin">-</b><span id="ghSource">未连接</span></div>
+            <button class="btn btn-ghost btn-sm" id="ghEditBtn">连接</button>
+            <button class="btn btn-ghost btn-sm" id="ghDisconnect">断开</button>
           </div>
-          <div id="ghTokenBox">
-            <label class="field">用 Personal Access Token 连接（不需要 OAuth App）</label>
-            <input type="text" id="ghTokenInput" placeholder="github_pat_... 或 ghp_...（需要 repo 权限）">
-            <div class="hint">Token 只存入本服务的 Durable Object，用于读代码 / 看 CI / 开 issue。</div>
-          </div>
-          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
-            <button class="btn btn-primary btn-sm" id="ghTokenSave">用 Token 连接</button>
-            <button class="btn btn-ghost btn-sm" id="ghConnect">OAuth 授权</button>
+          <div class="setting-row">
+            <div class="who"><b id="repoNow">-</b><span>目标仓库</span></div>
+            <button class="btn btn-ghost btn-sm" id="repoEditBtn">更换</button>
           </div>
         </div>
-
-
 
         <div class="card">
           <h2>访问密钥（外部应用）</h2>
-          <p class="desc">外部应用调用 API 用的 Bearer 密钥：<code>Authorization: Bearer …</code>。当前：<span id="accessKeyState">—</span>。留空保存表示不修改。</p>
-          <input type="password" id="cfgAccessKey" placeholder="留空保持不变" autocomplete="new-password">
+          <div class="setting-row">
+            <div class="who"><b id="accessKeyState">-</b><span>外部应用调用 API：<code>Authorization: Bearer …</code></span></div>
+            <button class="btn btn-ghost btn-sm" id="accessKeyEditBtn">修改</button>
+          </div>
         </div>
-
-      </div>
-      <div class="save-bar">
-        <button class="btn btn-ghost" id="reloadBtn">放弃修改</button>
-        <button class="btn btn-primary" id="saveBtn" disabled>保存设置</button>
       </div>
     </section>
   </main>
@@ -620,91 +620,113 @@
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("chatInput").value); }
   });
 
-  /* ---------------- settings ---------------- */
-  var dirty = false;
-  function setDirty(v) {
-    dirty = v;
-    $("saveBtn").disabled = !v;
-    $("saveBadge").textContent = v ? "有未保存修改" : "未修改";
-    $("saveBadge").className = "badge " + (v ? "warn" : "");
+  /* ---------------- settings（只读展示，编辑走弹窗） ---------------- */
+  var currentRepo = "";
+  var modalSaveFn = null;
+
+  function openModal(title, bodyHtml, onSave) {
+    $("modalTitle").textContent = title;
+    $("modalBody").innerHTML = bodyHtml;
+    modalSaveFn = onSave;
+    $("modal").classList.remove("hidden");
   }
+  function closeModal() {
+    $("modal").classList.add("hidden");
+    modalSaveFn = null;
+  }
+  $("modalCancel").addEventListener("click", closeModal);
+  $("modal").addEventListener("click", function (e) { if (e.target === $("modal")) closeModal(); });
+  $("modalSave").addEventListener("click", async function () {
+    if (!modalSaveFn) return closeModal();
+    try {
+      if (await modalSaveFn() !== false) closeModal();
+    } catch (e) { toast(e.message); }
+  });
 
   async function loadSettings() {
-    var cfg = await api("/api/config");
-    $("cfgAccessKey").value = "";
-    $("accessKeyState").textContent = cfg.accessKeySet ? "已设置（留空保存保持不变）" : "未设置（仅认 Worker secret）";
-    setDirty(false);
+    try {
+      var cfg = await api("/api/config");
+      currentRepo = cfg.repo || "";
+      $("repoNow").textContent = currentRepo || "（未设置）";
+      $("accessKeyState").textContent = cfg.accessKeySet ? "已设置" : "未设置（仅认 Worker secret）";
+    } catch (e) { /* transient */ }
   }
 
-  ["cfgAccessKey"].forEach(function (id) {
-    $(id).addEventListener("input", function () { setDirty(true); });
+  $("ghEditBtn").addEventListener("click", function () {
+    openModal("连接 GitHub",
+      '<label class="field">Personal Access Token（需要 repo 权限）</label>' +
+      '<input type="text" id="ghTokenInput" placeholder="github_pat_... 或 ghp_...">' +
+      '<div class="hint">Token 只存入本服务的 Durable Object。也可以 <a href="#" id="ghOauthLink">用 OAuth 授权</a>。</div>',
+      async function () {
+        var token = $("ghTokenInput").value.trim();
+        if (!token) { toast("请粘贴 Token，或用 OAuth 授权"); return false; }
+        await api("/api/github/connect", { method: "POST", body: { token: token } });
+        await refreshGh();
+        toast("GitHub 已连接");
+      });
+    $("ghOauthLink").addEventListener("click", function (e) { e.preventDefault(); startOauth(); });
   });
 
-  $("saveBtn").addEventListener("click", async function () {
+  $("repoEditBtn").addEventListener("click", async function () {
+    var opts = "";
     try {
-      await api("/api/config", {
-        method: "PUT",
-        body: {
-          accessKey: $("cfgAccessKey").value.trim(),
-        },
+      var data = await api("/api/github/repos");
+      (data.repos || []).forEach(function (r) { opts += '<option value="' + esc(r.name) + '">'; });
+    } catch (e) { /* 仓库列表可选 */ }
+    openModal("更换目标仓库",
+      '<label class="field">仓库（owner/name）</label>' +
+      '<input type="text" id="repoInput" list="repoList" placeholder="EeroEternal/xgateway">' +
+      '<datalist id="repoList">' + opts + "</datalist>" +
+      '<div class="hint">连接 GitHub 后可从你的仓库列表里选。</div>',
+      async function () {
+        var repo = $("repoInput").value.trim();
+        if (!repo) { toast("请填写仓库（owner/name）"); return false; }
+        await api("/api/config", { method: "PUT", body: { repo: repo } });
+        await loadSettings();
+        toast("已切换目标仓库：" + repo);
       });
-      if ($("cfgAccessKey").value.trim()) {
-        $("accessKeyState").textContent = "已设置（留空保存保持不变）";
-        $("cfgAccessKey").value = "";
-      }
-      setDirty(false);
-      toast("设置已保存");
-    } catch (e) {
-      toast("保存失败：" + e.message);
-    }
+    $("repoInput").value = currentRepo;
   });
-  $("reloadBtn").addEventListener("click", loadSettings);
+
+  $("accessKeyEditBtn").addEventListener("click", function () {
+    openModal("修改访问密钥",
+      '<label class="field">Bearer 密钥（供外部应用调用 API）</label>' +
+      '<div style="display:flex;gap:8px;align-items:center">' +
+      '<input type="password" id="accessKeyInput" placeholder="留空保持不变" autocomplete="new-password" style="flex:1">' +
+      '<button class="btn btn-ghost btn-sm" id="genKeyBtn">自动生成</button></div>' +
+      '<div class="hint">保存后把密钥发给外部应用：<code>Authorization: Bearer 密钥</code>。修改后旧密钥失效（全局只有一个密钥）。</div>',
+      async function () {
+        var key = $("accessKeyInput").value.trim();
+        if (!key) { toast("留空则不修改"); return false; }
+        await api("/api/config", { method: "PUT", body: { accessKey: key } });
+        await loadSettings();
+        toast("访问密钥已保存，可复制给外部应用");
+      });
+    $("genKeyBtn").addEventListener("click", function () {
+      // 浏览器原生 CSPRNG：ck_ + 48 位十六进制
+      var bytes = new Uint8Array(24);
+      crypto.getRandomValues(bytes);
+      var hex = Array.prototype.map.call(bytes, function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
+      var input = $("accessKeyInput");
+      input.value = "ck_" + hex;
+      input.type = "text"; // 生成后可见，方便复制给外部应用
+    });
+  });
 
 
   /* ---------------- status / github ---------------- */
   async function refreshGh() {
     try {
       var st = await api("/api/github/status");
-      $("ghConnectedBox").classList.toggle("hidden", !st.connected);
-      $("ghTokenBox").classList.toggle("hidden", st.connected);
-      if (st.connected) {
-        $("ghLogin").textContent = st.login || "已连接（Token）";
-        $("ghAvatar").textContent = (st.login || "G").slice(0, 1).toUpperCase();
-        var data = await api("/api/github/repos");
-        var cfg = await api("/api/config");
-        var sel = $("ghRepoSelect");
-        sel.innerHTML = "";
-        (data.repos || []).forEach(function (r) {
-          var o = document.createElement("option");
-          o.value = r.name;
-          o.textContent = r.name + (r.private ? " 🔒" : "");
-          if (r.name === cfg.repo) o.selected = true;
-          sel.appendChild(o);
-        });
-      }
-    } catch (e) { /* status only */ }
+      $("ghLogin").textContent = st.connected ? (st.login || "已连接（Token）") : "未连接";
+      $("ghSource").textContent = st.connected
+        ? "来源：" + (st.source === "oauth" ? "OAuth" : st.source === "token" ? "Personal Access Token" : "GitHub App")
+        : "连接后可读代码、看 CI、开 issue";
+      $("ghDisconnect").style.display = st.connected ? "" : "none";
+    } catch (e) { /* transient */ }
   }
 
-  $("ghRepoSelect").addEventListener("change", async function () {
-    // 目标仓库直接生效保存（设置页不再有单独的仓库输入框）
-    try {
-      await api("/api/config", { method: "PUT", body: { repo: this.value } });
-      toast("已切换目标仓库：" + this.value);
-    } catch (e) { toast(e.message); }
-  });
-
-  $("ghTokenSave").addEventListener("click", async function () {
-    var token = $("ghTokenInput").value.trim();
-    if (!token) { toast("请先粘贴 Token"); return; }
-    try {
-      await api("/api/github/connect", { method: "POST", body: { token: token } });
-      $("ghTokenInput").value = "";
-      await refreshGh();
-      toast("GitHub 已连接");
-    } catch (e) { toast(e.message); }
-  });
-
-  $("ghConnect").addEventListener("click", async function () {
+  async function startOauth() {
     try {
       var data = await api("/api/github/connect", { method: "POST", body: {} });
       if (data.url) {
@@ -713,7 +735,7 @@
         toast("请在弹出的 GitHub 页面完成授权");
       }
     } catch (e) { toast(e.message); }
-  });
+  }
 
   $("ghDisconnect").addEventListener("click", async function () {
     try {
