@@ -268,14 +268,9 @@
       </div>
       <div class="settings-body">
         <div class="card">
-          <h2>GitHub</h2>
+          <h2>目标仓库</h2>
           <div class="setting-row">
-            <div class="who"><b id="ghLogin">-</b><span id="ghSource">未连接</span></div>
-            <button class="btn btn-ghost btn-sm" id="ghEditBtn">连接</button>
-            <button class="btn btn-ghost btn-sm" id="ghDisconnect">断开</button>
-          </div>
-          <div class="setting-row">
-            <div class="who"><b id="repoNow">-</b><span>目标仓库</span></div>
+            <div class="who"><b id="repoNow">-</b><span>Agent 工作的目标仓库（owner/name）</span></div>
             <button class="btn btn-ghost btn-sm" id="repoEditBtn">更换</button>
           </div>
         </div>
@@ -666,32 +661,11 @@
     } catch (e) { /* transient */ }
   }
 
-  $("ghEditBtn").addEventListener("click", function () {
-    openModal("连接 GitHub",
-      '<label class="field">Personal Access Token（需要 repo 权限）</label>' +
-      '<input type="text" id="ghTokenInput" placeholder="github_pat_... 或 ghp_...">' +
-      '<div class="hint">Token 只存入本服务的 Durable Object。也可以 <a href="#" id="ghOauthLink">用 OAuth 授权</a>。</div>',
-      async function () {
-        var token = $("ghTokenInput").value.trim();
-        if (!token) { toast("请粘贴 Token，或用 OAuth 授权"); return false; }
-        await api("/api/github/connect", { method: "POST", body: { token: token } });
-        await refreshGh();
-        toast("GitHub 已连接");
-      });
-    $("ghOauthLink").addEventListener("click", function (e) { e.preventDefault(); startOauth(); });
-  });
-
   $("repoEditBtn").addEventListener("click", async function () {
-    var opts = "";
-    try {
-      var data = await api("/api/github/repos");
-      (data.repos || []).forEach(function (r) { opts += '<option value="' + esc(r.name) + '">'; });
-    } catch (e) { /* 仓库列表可选 */ }
     openModal("更换目标仓库",
       '<label class="field">仓库（owner/name）</label>' +
-      '<input type="text" id="repoInput" list="repoList" placeholder="EeroEternal/xgateway">' +
-      '<datalist id="repoList">' + opts + "</datalist>" +
-      '<div class="hint">连接 GitHub 后可从你的仓库列表里选。</div>',
+      '<input type="text" id="repoInput" placeholder="EeroEternal/xgateway">' +
+      '<div class="hint">celadon 值守的目标仓库。</div>',
       async function () {
         var repo = $("repoInput").value.trim();
         if (!repo) { toast("请填写仓库（owner/name）"); return false; }
@@ -750,49 +724,11 @@
   });
 
 
-  /* ---------------- status / github ---------------- */
-  async function refreshGh() {
-    try {
-      var st = await api("/api/github/status");
-      $("ghLogin").textContent = st.connected ? (st.login || "已连接（Token）") : "未连接";
-      $("ghSource").textContent = st.connected
-        ? "来源：" + (st.source === "oauth" ? "OAuth" : st.source === "token" ? "Personal Access Token" : "GitHub App")
-        : "连接后可读代码、看 CI、开 issue";
-      $("ghDisconnect").style.display = st.connected ? "" : "none";
-    } catch (e) { /* transient */ }
-  }
-
-  async function startOauth() {
-    try {
-      var data = await api("/api/github/connect", { method: "POST", body: {} });
-      if (data.url) {
-        var w = window.open(data.url, "gh-oauth", "width=640,height=720,noopener");
-        if (!w) { window.location.href = data.url; return; }
-        toast("请在弹出的 GitHub 页面完成授权");
-      }
-    } catch (e) { toast(e.message); }
-  }
-
-  $("ghDisconnect").addEventListener("click", async function () {
-    try {
-      await api("/api/config", { method: "PUT", body: { github: { token: "", login: "" } } });
-      await refreshGh();
-      toast("已断开 GitHub");
-    } catch (e) { toast(e.message); }
-  });
-
-  window.addEventListener("message", function (e) {
-    if (e.data && e.data.type === "gh-connected") {
-      refreshGh();
-      toast("GitHub 已连接");
-    }
-  });
-
   /* ---------------- boot ---------------- */
   async function boot() {
     await loadSessions();
     navigate("chat");
-    await Promise.all([loadMessages(), loadSettings(), refreshGh()]);
+    await Promise.all([loadMessages(), loadSettings()]);
     if (waiting) startPolling();
   }
 

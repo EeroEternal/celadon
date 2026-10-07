@@ -9,7 +9,7 @@
 打开 `https://celadon.chat/`，登录用户 `admin`（初始口令 `admin123`，**部署后请立即在设置页「登录口令」修改**，或 `npx wrangler secret put ADMIN_PASS`；浏览器会话 30 天有效）。主界面就是聊天，桌面 / 平板 / 手机自适应。
 
 - **对话**（主页面）：普通 AI 聊天窗口，Markdown/代码块、思考动画、实时回复；手机端右上角 ⚙️ 进设置
-- **设置**（独立页面）：只读展示当前配置（GitHub 连接、目标仓库、访问密钥、登录口令状态），点行尾按钮弹窗修改；访问密钥支持**自动生成**（`ck_` + 48 位十六进制）
+- **设置**（独立页面）：只读展示当前配置（目标仓库、访问密钥、登录口令状态），点行尾按钮弹窗修改；访问密钥支持**自动生成**（`ck_` + 48 位十六进制）
 - 侧栏底部：用户状态 + 退出登录
 - 底部保存条，未保存修改有提示
 
@@ -17,27 +17,12 @@
 
 ```
 POST /api/login / /api/logout / GET /api/session   会话
-GET  /api/status         总览（仓库 / GitHub / 告警 / 模型 / cron）
+GET  /api/status         总览（仓库 / 告警 / 模型 / cron）
 GET  /api/config         读配置
 PUT  /api/config         改配置 {repo, extra, daily, quick, github}
 POST /api/run            立即运行 {slot:"daily"|"quick"}
-POST /api/github/connect + /api/github/callback + /api/github/repos   GitHub 授权链路
 POST /agents/keeper/{会话id}   对话（Bearer KEEPER_API_KEY 或登录 Cookie）
 ```
-
-### GitHub 授权（弹窗连接用）
-
-1. GitHub → Settings → Developer settings → **OAuth Apps** → New OAuth App
-   - Homepage URL：`https://celadon.chat`
-   - Authorization callback URL：`https://celadon.chat/api/github/callback`
-2. 把 Client ID / Client Secret 存进 Cloudflare：
-
-```bash
-npx wrangler secret put GITHUB_CLIENT_ID
-npx wrangler secret put GITHUB_CLIENT_SECRET
-```
-
-授权后获得的 token 存在 ConfigStore，仓库工具自动优先用它；未连接时退回 `GITHUB_TOKEN` 或 GitHub App。
 
 ## 工作方式
 
@@ -62,7 +47,7 @@ Cloudflare Cron Trigger (wrangler.jsonc)
 
 ```
 src/app.ts            HTTP 入口（会话 / 页面 / 管理 API / 挂载 agent）
-src/public/index.html 管理页面（完整 SPA：登录、聊天、设置、GitHub 弹窗）
+src/public/index.html 管理页面（完整 SPA：登录、聊天、设置）
 src/config.ts         配置读写（ConfigStore Durable Object）
 src/cloudflare.ts     ConfigStore DO 定义 + scheduled handler：cron → dispatch
 src/agents/keeper.ts  Agent 本体（'use agent'，工具、记忆、playbook）
@@ -84,7 +69,9 @@ npx wrangler secret put PAGER_ROUTING_KEY       # 可选，PagerDuty
 npm run deploy                                  # vite build && wrangler deploy
 ```
 
-### GitHub App（替代个人 token）
+### GitHub App（可选，仅仓库工具用）
+
+celadon 是纯 runner，**不内置 GitHub 连接**；只有需要 repo_* 工具 / open_issue 时才配以下认证。
 
 1. GitHub → Settings → Developer settings → **GitHub Apps** → New GitHub App：
    - Repository permissions：**Contents: Read-only**、**Issues: Read & write**、**Actions: Read-only**
@@ -136,7 +123,7 @@ curl localhost:5173/agents/keeper/main -X POST -H 'content-type: application/jso
 | token | 干什么用 | 不配会怎样 | 怎么配 |
 | --- | --- | --- | --- |
 | `KEEPER_API_KEY` | 调 HTTP API / 对话接口的访问密钥 | 只能靠网页登录态（Cookie）访问 | `npx wrangler secret put KEEPER_API_KEY`，**或在设置页「访问密钥」直接填**（两者任一即可，secret 优先） |
-| GitHub App（私钥+ID+安装ID）或 `GITHUB_TOKEN` | 读仓库、看 CI、开 issue | 仓库工具不可用（纯聊天不受影响） | 见「GitHub App」一节 |
+| GitHub App（私钥+ID+安装ID）或 `GITHUB_TOKEN`（仅仓库工具用，无连接 UI） | 读仓库、看 CI、开 issue | 仓库工具不可用（不影响纯 runner） | `wrangler secret put`，见「GitHub App」一节 |
 | 模型 API key | 用 Workers AI 之外的模型 | 默认 `cloudflare/...` 走 Workers AI，**免 key** | 设置页填模型 + API key |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | 网页里弹窗 OAuth 连 GitHub | 退回手动粘贴 PAT | `npx wrangler secret put` |
 | `PAGER_ROUTING_KEY` / `PAGER_WEBHOOK_URL` | 紧急问题呼叫人类 | 不呼叫，只开 issue 跟踪 | `npx wrangler secret put` |

@@ -54,29 +54,6 @@ function validSession(value?: string): boolean {
 	return safeEqual(mac, sign(`s:${exp}`));
 }
 
-// ---- github oauth ------------------------------------------------------
-function ghClientId(): string {
-	return process.env.GITHUB_CLIENT_ID ?? '';
-}
-
-function ghState(): string {
-	const ts = Date.now();
-	return `${ts}.${sign(`gh:${ts}`)}`;
-}
-
-function ghStateValid(state: string): boolean {
-	const [ts, mac] = state.split('.');
-	if (!ts || !mac) return false;
-	if (Date.now() - Number(ts) > 15 * 60_000) return false;
-	return safeEqual(mac, sign(`gh:${ts}`));
-}
-
-const CALLBACK_HTML = `<!doctype html><meta charset="utf-8"><script>
-try { window.opener && window.opener.postMessage({ type: 'gh-connected' }, location.origin); } catch (e) {}
-document.write('<p style="font-family:system-ui">GitHub 已连接，可以关闭此窗口。</p>');
-setTimeout(function () { window.close(); }, 800);
-</script>`;
-
 // ---- auth guard --------------------------------------------------------
 // 访问密钥：Worker secret 优先，设置页配置的 accessKey 兑底（常量时间比较）。
 async function bearerOk(bearer?: string): Promise<boolean> {
@@ -85,7 +62,7 @@ async function bearerOk(bearer?: string): Promise<boolean> {
 	return accessKeyMatches(bearer, [process.env.KEEPER_API_KEY, cfg.accessKey]);
 }
 
-const PUBLIC_API = new Set(['/api/login', '/api/github/callback']);
+const PUBLIC_API = new Set(['/api/login']);
 
 app.use('/api/*', async (c, next) => {
 	if (PUBLIC_API.has(c.req.path)) return next();
@@ -138,12 +115,6 @@ app.get('/api/status', async (c) => {
 	const cfg = await getConfig();
 	return c.json({
 		repo: cfg.repo,
-		github: {
-			configured: !!ghClientId(),
-			connected: !!cfg.github.login || !!cfg.github.token || !!process.env.GITHUB_TOKEN,
-			login: cfg.github.login,
-			tokenSource: cfg.github.token ? 'oauth' : process.env.GITHUB_TOKEN ? 'token' : 'app',
-		},
 		pager: { pagerduty: !!process.env.PAGER_ROUTING_KEY, webhook: !!process.env.PAGER_WEBHOOK_URL },
 		model: cfg.model || process.env.KEEPER_MODEL || 'cloudflare/deepseek/deepseek-chat',
 		apiKeyEnv: cfg.apiKeyEnv,
@@ -156,7 +127,7 @@ app.get('/api/config', async (c) => {
 	const cfg = await getConfig();
 	// 访问密钥回传给设置页，方便再次复制分发（此接口在鉴权之后）；口令哈希不回传
 	const { adminPass, ...rest } = cfg;
-	return c.json({ ...rest, adminPassSet: !!adminPass, github: { login: cfg.github.login, connected: !!cfg.github.login } });
+	return c.json({ ...rest, adminPassSet: !!adminPass });
 });
 
 app.put('/api/config', async (c) => {
@@ -170,7 +141,7 @@ app.put('/api/config', async (c) => {
 		delete patch.adminPass;
 	}
 	const next = await setConfig(patch);
-	return c.json({ ...next, github: { login: next.github.login, connected: !!next.github.login } });
+	return c.json(next);
 });
 
 // ---- sessions ----------------------------------------------------------
@@ -250,93 +221,6 @@ app.post('/api/model-test', async (c) => {
 	} catch (e) {
 		return c.json({ ok: false, model: modelId, error: String(e).slice(0, 300) });
 	}
-});
-
-// ---- github connect ----------------------------------------------------
-app.get('/api/github/status', async (c) => {
-	const cfg = await getConfig();
-	const source = cfg.github.token ? 'oauth' : process.env.GITHUB_TOKEN ? 'token' : '';
-	return c.json({
-		configured: !!ghClientId(),
-		connected: !!cfg.github.login || !!source,
-		login: cfg.github.login || '',
-		source: cfg.github.token ? 'oauth' : process.env.GITHUB_TOKEN ? 'token' : '',
-	});
-});
-
-app.post('/api/github/connect', async (c) => {
-	const body = (await c.req.json().catch(() => ({}))) as { token?: string };
-	// Option 1: connect with a Personal Access Token pasted from the UI.
-	if (body.token) {
-		const res = await fetch('https://api.github.com/user', {
-			headers: {
-				authorization: `Bearer ${body.token}`,
-				accept: 'application/vnd.github+json',
-				'user-agent': 'celadon',
-			},
-		});
-		if (!res.ok) return c.json({ error: 'Token 无效或权限不足' }, 400);
-		const user = (await res.json()) as { login?: string };
-		await setConfig({ github: { token: body.token.trim(), login: user.login ?? '' } });
-		return c.json({ connected: true, login: user.login ?? '' });
-	}
-	// Option 2: OAuth popup flow.
-	if (!ghClientId()) {
-		return c.json({
-			error: '未配置 GitHub OAuth App，可在下方直接粘贴 Personal Access Token 连接',
-		}, 400);
-	}
-	const url =
-		'https://github.com/login/oauth/authorize' +
-		`?client_id=${ghClientId()}` +
-		`&redirect_uri=${encodeURIComponent('https://celadon.chat/api/github/callback')}` +
-		'&scope=repo%20read:user' +
-		`&state=${ghState()}`;
-	return c.json({ url });
-});
-
-app.get('/api/github/callback', async (c) => {
-	const code = c.req.query('code') ?? '';
-	const state = c.req.query('state') ?? '';
-	if (!code || !ghStateValid(state)) return c.html('<p style="font-family:system-ui">授权失败：state 无效</p>', 400);
-	const res = await fetch('https://github.com/login/oauth/access_token', {
-		method: 'POST',
-		headers: { 'content-type': 'application/json', accept: 'application/vnd.github+json' },
-		body: JSON.stringify({
-			client_id: ghClientId(),
-			client_secret: process.env.GITHUB_CLIENT_SECRET ?? '',
-			code,
-		}),
-	});
-	const data = (await res.json()) as { access_token?: string };
-	if (!data.access_token) return c.html('<p style="font-family:system-ui">授权失败：未取得 access_token</p>', 400);
-	const user = (await (
-		await fetch('https://api.github.com/user', {
-			headers: {
-				authorization: `Bearer ${data.access_token}`,
-				accept: 'application/vnd.github+json',
-				'user-agent': 'celadon',
-			},
-		})
-	).json()) as { login?: string };
-	await setConfig({ github: { token: data.access_token, login: user.login ?? '' } });
-	return c.html(CALLBACK_HTML);
-});
-
-app.get('/api/github/repos', async (c) => {
-	const cfg = await getConfig();
-	const token = cfg.github.token || process.env.GITHUB_TOKEN;
-	if (!token) return c.json({ error: '未连接 GitHub' }, 400);
-	const res = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
-		headers: {
-			authorization: `Bearer ${token}`,
-			accept: 'application/vnd.github+json',
-			'user-agent': 'celadon',
-		},
-	});
-	if (!res.ok) return c.json({ error: `GitHub ${res.status}` }, 502);
-	const repos = (await res.json()) as Array<{ full_name: string; private: boolean }>;
-	return c.json({ repos: repos.map((r) => ({ name: r.full_name, private: r.private })) });
 });
 
 // ---- agents + UI -------------------------------------------------------
