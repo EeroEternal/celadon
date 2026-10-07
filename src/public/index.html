@@ -143,6 +143,7 @@
   .card h2 + .setting-row { border-top: 0; padding-top: 4px; }
   .setting-row .who { flex: 1; min-width: 0; }
   .setting-row .who b { display: block; font-size: 13.5px; }
+  .setting-row .who b.key { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; overflow-wrap: anywhere; }
   .setting-row .who span { color: var(--muted); font-size: 12px; }
   .modal { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 60; display: flex;
     align-items: center; justify-content: center; padding: 16px; }
@@ -282,7 +283,8 @@
         <div class="card">
           <h2>访问密钥（外部应用）</h2>
           <div class="setting-row">
-            <div class="who"><b id="accessKeyState">-</b><span>外部应用调用 API：<code>Authorization: Bearer …</code></span></div>
+            <div class="who"><b id="accessKeyState" class="key">-</b><span>外部应用调用 API：<code>Authorization: Bearer …</code>，可随时复制分发</span></div>
+            <button class="btn btn-ghost btn-sm" id="copyKeyBtn">复制</button>
             <button class="btn btn-ghost btn-sm" id="accessKeyEditBtn">修改</button>
           </div>
         </div>
@@ -622,6 +624,7 @@
 
   /* ---------------- settings（只读展示，编辑走弹窗） ---------------- */
   var currentRepo = "";
+  var currentAccessKey = "";
   var modalSaveFn = null;
 
   function openModal(title, bodyHtml, onSave) {
@@ -648,7 +651,9 @@
       var cfg = await api("/api/config");
       currentRepo = cfg.repo || "";
       $("repoNow").textContent = currentRepo || "（未设置）";
-      $("accessKeyState").textContent = cfg.accessKeySet ? "已设置" : "未设置（仅认 Worker secret）";
+      currentAccessKey = cfg.accessKey || "";
+      $("accessKeyState").textContent = currentAccessKey || "未设置（仅认 Worker secret）";
+      $("copyKeyBtn").style.display = currentAccessKey ? "" : "none";
     } catch (e) { /* transient */ }
   }
 
@@ -686,6 +691,13 @@
         toast("已切换目标仓库：" + repo);
       });
     $("repoInput").value = currentRepo;
+  });
+
+  $("copyKeyBtn").addEventListener("click", async function () {
+    try {
+      await navigator.clipboard.writeText(currentAccessKey);
+      toast("访问密钥已复制");
+    } catch (e) { toast("复制失败，请手动选中复制"); }
   });
 
   $("accessKeyEditBtn").addEventListener("click", function () {

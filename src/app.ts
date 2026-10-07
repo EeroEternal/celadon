@@ -147,8 +147,8 @@ app.get('/api/status', async (c) => {
 
 app.get('/api/config', async (c) => {
 	const cfg = await getConfig();
-	const { accessKey, ...rest } = cfg; // 密钥值不回显，只给状态
-	return c.json({ ...rest, accessKeySet: !!accessKey, github: { login: cfg.github.login, connected: !!cfg.github.login } });
+	// 访问密钥回传给设置页，方便再次复制分发（此接口在鉴权之后）
+	return c.json({ ...cfg, github: { login: cfg.github.login, connected: !!cfg.github.login } });
 });
 
 app.put('/api/config', async (c) => {
