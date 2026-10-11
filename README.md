@@ -147,11 +147,12 @@ npm run deploy                             # vite build && wrangler deploy
 ### 外部应用调用（带记忆继承）
 
 ```bash
-# 1) 新建会话并选择继承的记忆（inheritFrom 填记忆库里的会话 id，留空 = 空白记忆）
+# 1) 新建会话并选择继承的记忆（inheritFrom 填记忆库里的会话 id，留空 = 空白记忆；
+#    title 建议传任务名——celadon 只对网页聊天自动命名，API 会话的标题由调用方设置）
 curl -X POST https://celadon.chat/api/sessions \
   -H "authorization: Bearer $KEEPER_API_KEY" -H 'content-type: application/json' \
-  -d '{"inheritFrom":"main"}'
-# → {"id":"s...","seed":[...选中的记忆快照...]}
+  -d '{"inheritFrom":"main","title":"smoke-ping (run a944b100)"}'
+# → {"id":"s...","title":"smoke-ping (run a944b100)","seed":[...选中的记忆快照...]}
 
 # 2) 首条消息带上 initialData（只在实例创建时生效，重复发无害）
 curl -X POST https://celadon.chat/agents/keeper/s... \
@@ -163,7 +164,7 @@ curl "https://celadon.chat/agents/keeper/s...?view=history" \
   -H "authorization: Bearer $KEEPER_API_KEY"
 ```
 
-记忆按会话隔离；`remember` 新写的记忆会镜像回记忆库（ConfigStore DO），以后新建的会话可选择继承。
+记忆按会话隔离；`remember` 新写的记忆会镜像回记忆库（ConfigStore DO），以后新建的会话可选择继承。改标题：`PATCH /api/sessions/{id}` `{"title":"新标题"}`。
 
 ## 备注
 

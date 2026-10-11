@@ -151,13 +151,13 @@ app.get('/api/sessions', async (c) => {
 });
 
 app.post('/api/sessions', async (c) => {
-	const body = (await c.req.json().catch(() => ({}))) as { inheritFrom?: string };
+	const body = (await c.req.json().catch(() => ({}))) as { inheritFrom?: string; title?: string };
 	const cfg = await getConfig();
 	// 用户选中的记忆继承：从记忆库拷一份快照，新实例经 initialData 带入。
 	const from = (body.inheritFrom ?? '').trim();
 	const session = {
 		id: `s${Date.now().toString(36)}`,
-		title: '新会话',
+		title: (body.title ?? '新会话').trim().slice(0, 60) || '新会话',
 		updatedAt: new Date().toISOString(),
 		memoryFrom: from,
 		seed: from ? (cfg.memories[from] ?? []) : [],
