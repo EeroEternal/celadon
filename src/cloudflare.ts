@@ -24,6 +24,8 @@ export default {
 		const cfg = await getConfig();
 		const slot = controller.cron === '0 0 * * *' ? cfg.daily : cfg.quick;
 		if (!slot.enabled) return;
+		// General-runner mode: no target repo linked → nothing to guard, skip.
+		if (!(cfg.repo || process.env.TARGET_REPO || '').trim()) return;
 		await dispatch(Keeper, {
 			id: ID,
 			message: {

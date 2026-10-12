@@ -1,6 +1,6 @@
 # celadon
 
-长期运行、自我优化的**仓库值守 Agent**：盯住任意一个目标仓库（`xgateway`、`xlite`、或任何 `owner/name`），每天午夜深度扫描、每 6 小时快速巡检，发现问题记录进持久记忆，紧急问题直接呼叫（page）人类。换目标仓库只需要改一个环境变量 `TARGET_REPO`。
+长期运行、自我优化的**通用任务 Agent / 仓库值守**：平时盯住任意一个目标仓库（`xgateway`、`xlite`、或任何 `owner/name`），每天午夜深度扫描、每 6 小时快速巡检，发现问题记录进持久记忆，紧急问题直接呼叫（page）人类。换目标仓库只需要改一个环境变量 `TARGET_REPO`；**不设仓库 = 通用 runner 模式**（值守 cron 自动跳过），任务给链接时用 `fetch` 工具直接抓取内容（temp link：http(s)、拒绝内网地址、文本上限 512KB）。
 
 基于 [Flue](https://flueframework.com/)（Agent harness）+ Cloudflare Workers（cron 触发）+ Durable Objects（记忆 + 配置）。
 
@@ -32,7 +32,8 @@ Cloudflare Cron Trigger (wrangler.jsonc)
    └─ 0 */6 * * *  每 6 小时快速巡检
           ↓ dispatch(Keeper, { id: 'main', message })
    Flue Durable Object: FlueKeeperAgent（同一个长跑会话 'main'）
-          ├─ repo_list / repo_read / repo_search / repo_ci   读 GitHub 仓库做分析
+          ├─ repo_list / repo_read / repo_search / repo_ci   读已链接仓库做分析
+          ├─ fetch      抓取任务给的临时链接（文档/代码/页面正文，512KB 上限）
           ├─ open_issue 在 GitHub 开 issue（告警/跟踪直接落在仓库里）
           ├─ remember   写持久记忆（跨天累积）
           ├─ update_playbook  改写自己的操作手册 → 自我优化
@@ -52,8 +53,10 @@ src/config.ts         配置读写（ConfigStore Durable Object）
 src/cloudflare.ts     ConfigStore DO 定义 + scheduled handler：cron → dispatch
 src/agents/keeper.ts  Agent 本体（'use agent'，工具、记忆、playbook）
 src/tools/repo.ts     GitHub API（列表/读文件/代码搜索/CI 结果/开 issue）
+src/tools/fetch.ts    抓取临时链接（http(s)，512KB 上限，拒绝内网地址）
 src/tools/pager.ts    呼叫人类（PagerDuty Events v2 或 webhook）
 test/pager.test.ts    node --test 自检
+test/fetch.test.ts    fetch 工具的 URL 防护自检
 ```
 
 ## 部署
@@ -86,7 +89,7 @@ celadon 会自己用私钥签 JWT 去换 **installation access token**（1 小�
 
 | 变量 | 说明 | 默认 |
 | --- | --- | --- |
-| `TARGET_REPO` | 被守护的仓库 `owner/name`（必填，换仓库只改这里） | `EeroEternal/xgateway` |
+| `TARGET_REPO` | 被守护的仓库 `owner/name`（为空 = 通用 runner 模式，值守 cron 跳过） | `EeroEternal/xgateway` |
 | `GITHUB_APP_ID` / `GITHUB_APP_PRIVATE_KEY` / `GITHUB_INSTALLATION_ID` | GitHub App 认证（推荐，自动换短时 token） | — |
 | `GITHUB_TOKEN` | 个人 token，本地开发兜底（可选） | — |
 | `PAGER_ROUTING_KEY` | PagerDuty Events v2 routing key | — |

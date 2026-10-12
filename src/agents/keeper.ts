@@ -4,6 +4,7 @@ import { useDelivery, useInitialData, useModel, usePersistentState, useTool } fr
 import * as v from 'valibot';
 import { appendMemory, getConfig, MemorySchema, parseMemorySeed, type MemoryEntry } from '../config.ts';
 import { sendPage, type Severity } from '../tools/pager.ts';
+import { fetchText } from '../tools/fetch.ts';
 import { repoCi, repoList, repoOpenIssue, repoRead, repoSearch } from '../tools/repo.ts';
 
 const DEFAULT_PLAYBOOK = `1. 先看 CI(repo_ci),失败的 run 是最可信的问题信号。
@@ -78,6 +79,16 @@ export function Keeper(props: { id: string }) {
 	});
 
 	useTool({
+		name: 'fetch',
+		description:
+			'Fetch a URL (a "temp link") and return its text content — use when a task hands you a link instead of a linked repository. http(s) only, private addresses refused, text capped at 512KB; binary responses come back as metadata only.',
+		input: v.object({ url: v.string() }),
+		async run({ data }) {
+			return fetchText(data.url);
+		},
+	});
+
+	useTool({
 		name: 'repo_list',
 		description: 'List file and directory names in the linked target repository.',
 		input: v.object({ path: v.optional(v.string()) }),
@@ -135,18 +146,13 @@ export function Keeper(props: { id: string }) {
 		},
 	});
 
-	// 结构上分离：日常对话不下发值守指令与记忆，避免模型被历史锚定成"值守机器人"。
+	// 结构上分层：定时信号 → 值守循环；用户消息 → 通用任务 runner（仓库工具只是可选能力）。
 	const delivery = useDelivery();
 	const text = delivery.kind === 'user' ? String(delivery.body ?? '') : '';
-	const duty = delivery.kind !== 'user' || /检查|巡检|扫描|排查|分析|review|scan|check/i.test(text);
+	const memoryContext = `## Playbook（你自己维护的操作手册）\n${playbook}\n\n## 记忆（持久化，跨次累积，共 ${memory.length} 条）\n${memory.map((m) => `#${m.id} [${m.kind}] ${m.note}`).join('\n') || '(空)'}`;
 
-	if (!duty) {
-		return `你是一个通用 AI 助手。简洁、直接地回应用户这句话本身。
-不要自报为值守/审查机器人，不总结历史，不列任务菜单，不提 playbook、记忆、定时周期。
-用户问你是谁，就简单说自己是 AI 助手。始终用简体中文输出。`;
-	}
-
-	return `你是目标仓库的长期值守 Agent。现在进入值守模式：按下方工作循环完成本次任务。始终用简体中文输出。
+	if (delivery.kind !== 'user') {
+		return `你是目标仓库的长期值守 Agent。现在进入值守模式：按下方工作循环完成本次任务。始终用简体中文输出。
 
 ## 值守工作循环
 1. 回顾下方记忆，确定本次重点（不要重复已经确认过的误报）。
@@ -158,11 +164,28 @@ export function Keeper(props: { id: string }) {
 ## 值守输出
 结束时输出一份简短报告：新增问题、已排除的误报、建议的人工动作、以及你对 playbook 做的改动。
 
-## Playbook（你自己维护的操作手册）
-${playbook}
+${memoryContext}`;
+	}
 
-## 记忆（持久化，跨次累积，共 ${memory.length} 条）
-${memory.map((m) => `#${m.id} [${m.kind}] ${m.note}`).join('\n') || '(空)'}`;
+	const wantsRepoWork = /检查|巡检|扫描|排查|分析|review|scan|check/i.test(text);
+	if (!wantsRepoWork) {
+		return `你是一个通用任务 Agent。简洁、直接地完成用户这句话本身的要求。
+可用工具：fetch（拿到链接就抓正文）、repo_list/repo_read/repo_search/repo_ci/open_issue（仅对“已链接的目标仓库”有效）、remember、update_playbook、page。
+不要自报为值守机器人，不列任务菜单，不提未被要求的 playbook、记忆、定时周期。用户问你是谁，就简单说自己是 AI 助手。始终用简体中文输出。`;
+	}
+
+	return `你是通用任务 Agent（仓库值守只是你的能力之一）。按任务本身的要求完成工作，自主选工具。始终用简体中文输出。
+
+## 工具选择
+- **给了链接**（文档、文件、页面）→ fetch 抓取正文，不要臆造内容。
+- **涉及已链接的目标仓库** → 用 repo_list / repo_read / repo_search / repo_ci 读代码做分析；确认的问题用 open_issue 开 issue（链接写进 remember）。
+- **任务的仓库不是已链接的那个、或根本没链接仓库** → 直说限制：你只能读已链接的仓库，或改用 fetch/消息内的上下文完成分析；不要假装读过。
+- 需人工紧急介入用 page；沉淀用 remember；有可复用经验用 update_playbook。
+
+## 输出
+结束时给出简短、结论优先的报告：结论/发现、依据（文件或链接）、遗留动作。
+
+${memoryContext}`;
 }
 
 Keeper.agentName = 'keeper';
